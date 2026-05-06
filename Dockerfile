@@ -25,6 +25,17 @@ COPY frontend/package*.json frontend/
 COPY backend/package*.json backend/
 RUN npm ci --workspaces --include-workspace-root
 
+# Workaround for npm optional-deps bug (npm/cli#4828): rollup's native binary
+# is platform-specific, but `npm ci` doesn't reliably install it for the
+# target arch when the lockfile was generated on a different host.
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        amd64) ROLLUP_BIN=@rollup/rollup-linux-x64-gnu ;; \
+        arm64) ROLLUP_BIN=@rollup/rollup-linux-arm64-gnu ;; \
+        *) echo "Unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    npm install --workspace=frontend --no-save "$ROLLUP_BIN"
+
 # Copy sources and build.
 COPY frontend frontend
 COPY backend backend
