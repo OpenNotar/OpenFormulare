@@ -142,6 +142,7 @@ cp backend/.env.example backend/.env
 
 # Python-Abhängigkeiten für die Datenbank-Migrationen
 cd backend
+mkdir data/
 pip install -r requirements.txt
 
 # Datenbank anlegen und Default-Dialoge importieren (einmalig)
