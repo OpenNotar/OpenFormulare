@@ -32,6 +32,245 @@ auf demselben Origin. Details siehe [Docker](#docker).
 
 ---
 
+## Admin-Passwort setzen
+
+Es gibt **zwei Wege**, das Admin-Passwort zu setzen — wähle den, der zu
+deinem Deployment passt:
+
+### Weg A: Eigenes Passwort beim Start vorgeben (empfohlen)
+
+Übergebe `ADMIN_PASSWORD` (und ggf. `ADMIN_USERNAME`) als Umgebungsvariable:
+
+```bash
+# Docker
+docker run -d --name openformulare \
+  -p 3001:3001 \
+  -e CORS_ORIGIN="https://kanzlei.example.de" \
+  -e ADMIN_USERNAME="kanzlei-admin" \
+  -e ADMIN_PASSWORD="MeinSicheresPasswort!" \
+  -v openformulare-data:/data \
+  --restart unless-stopped \
+  opennotar/openformulare:latest
+```
+
+```yaml
+# docker-compose.yml
+services:
+  openformulare:
+    image: opennotar/openformulare:latest
+    environment:
+      ADMIN_USERNAME: kanzlei-admin
+      ADMIN_PASSWORD: MeinSicheresPasswort!
+      CORS_ORIGIN: https://kanzlei.example.de
+    volumes:
+      - openformulare-data:/data
+```
+
+Wird ein bereits gesetztes Passwort durch eine neue ENV-Variable
+übersteuert, übernimmt der Container den neuen Wert beim nächsten Neustart
+und persistiert ihn im Volume.
+
+> **Tipp:** Statt das Passwort direkt in die Compose-Datei zu schreiben, lieber
+> eine separate `.env`-Datei oder Docker-Secrets verwenden — niemals ins Git!
+
+### Weg B: Passwort beim ersten Start automatisch generieren lassen
+
+Setzt du **kein** `ADMIN_PASSWORD`, generiert der Container beim ersten
+Start ein zufälliges, druckbares Passwort, persistiert es unter
+`/data/.secrets/admin-password` (Permissions `600`) und gibt es **einmalig**
+im Container-Log aus:
+
+```text
+[entrypoint] ===================================================
+[entrypoint] Initiales Admin-Passwort generiert:
+[entrypoint]   Benutzer:  admin
+[entrypoint]   Passwort:  fG9k...sw23
+[entrypoint] Bitte direkt nach dem ersten Login ändern oder über
+[entrypoint] die Umgebungsvariable ADMIN_PASSWORD übersteuern.
+[entrypoint] ===================================================
+```
+
+Auslesen:
+
+```bash
+docker logs openformulare 2>&1 | grep -A2 "Admin-Passwort generiert"
+# oder:
+docker exec openformulare cat /data/.secrets/admin-password
+```
+
+Spätere Container-Neustarts lesen dasselbe Passwort wieder aus dem Volume —
+das Log bleibt dann ruhig.
+
+### Passwort später ändern
+
+- **Per ENV:** Container mit neuem `ADMIN_PASSWORD` starten — überschreibt
+  die Datei im Volume.
+- **Per Volume:** Den Inhalt von `/data/.secrets/admin-password` durch das
+  neue Passwort ersetzen, Container neu starten.
+- **Per UI:** _(in Vorbereitung – aktuell nur über die obigen Wege)_
+
+Dieselben zwei Wege gelten auch für `ADMIN_SESSION_SECRET`,
+`DIALOG_DB_PASSWORD` und `DIALOG_DB_SALT`: setzen oder vom Container beim
+ersten Start generieren lassen.
+
+---
+
+## Voraussetzungen
+
+Für das Docker-Image: **nur Docker** (≥ 24).
+
+Für lokale Entwicklung:
+
+- **Node.js** ≥ 20
+- **npm** ≥ 10
+- **Python** ≥ 3.9 (für yoyo-Migrationen)
+
+---
+
+## Installation (lokale Entwicklung)
+
+```bash
+git clone <repo-url>
+cd openformulare
+
+# Node-Abhängigkeiten installieren (Frontend + Backend)
+npm install
+
+# .env-Dateien anlegen und an die eigene Umgebung anpassen
+cp frontend/.env.example frontend/.env
+cp backend/.env.example backend/.env
+
+# Python-Abhängigkeiten für die Datenbank-Migrationen
+cd backend
+pip install -r requirements.txt
+
+# Datenbank anlegen und Default-Dialoge importieren (einmalig)
+npm run migrate
+cd ..
+```
+
+`npm run migrate` muss nur beim ersten Setup und nach Datenbank-Schema-
+Änderungen erneut ausgeführt werden.
+
+---
+
+## Konfiguration
+
+OpenFormulare hat zwei Konfigurationsebenen:
+
+1. **`.env` / Umgebungsvariablen** — Boot-Zeit-Konfiguration (Ports, Secrets,
+   Demo-Mode, Datenbankpfad).
+2. **Admin-Bereich** — Laufzeit-Konfiguration (Branding, SMTP, Mandanten-Mail-
+   Vorlage, DiNo-Schlüssel, Versand-Optionen, Personen-Vorlagen, Kontakt-Step).
+   Im Demo-Modus liegen Änderungen nur in der Session des Editors.
+
+### Frontend (`frontend/.env`)
+
+```env
+# URL des Backends (für lokale Entwicklung; im Docker-Build leer → relative Pfade)
+VITE_API_URL=http://localhost:3001
+```
+
+### Backend (`backend/.env`)
+
+Nur die Boot-Variablen sind hier zu pflegen. Alles andere lebt im Admin-
+Bereich:
+
+```env
+PORT=3001
+CORS_ORIGIN=http://localhost:5173
+
+# Demo-Modus:
+#   true  = kein Admin-Login, alle Daten leben nur in der Session,
+#           keine echten E-Mails, keine DiNo-Anbindung.
+#   false = Produktivbetrieb.
+DEMO_MODE=false
+
+# Pfad zur verschlüsselten SQLite-Datenbank
+SQLITE_PATH=./data/dialogs.sqlite
+
+# Verschlüsselungsschlüssel & Salt – im Docker-Image automatisch generiert.
+DIALOG_DB_PASSWORD=
+DIALOG_DB_SALT=
+
+# Admin-Zugangsdaten (siehe Abschnitt "Admin-Passwort setzen")
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=
+ADMIN_SESSION_SECRET=
+
+# Primärfarbe für PDF-Header (Hex ohne #) – Branding ansonsten via Admin-UI
+PRIMARY_COLOR=1a3a5c
+
+# Rate-Limit für /api/submit (pro 15 min)
+RATE_LIMIT_MAX=10
+```
+
+> SMTP-Server, Notar-E-Mail, Versandwege, DiNo-API-Key, Mandanten-E-Mail-
+> Vorlage und HTML-Signatur werden nicht mehr in der `.env` gepflegt, sondern
+> im **Admin-Bereich → Einstellungen**. Dort eingetragene Werte überschreiben
+> jegliche Fallbacks aus der `.env`.
+
+---
+
+## Entwicklung
+
+Lokale Entwicklung mit getrenntem Frontend (5173) und Backend (3001):
+
+```bash
+# Frontend (Vite, Port 5173)
+npm run dev:frontend
+
+# Backend (ts-node-dev, Port 3001)
+npm run dev:backend
+```
+
+Frontend und Backend müssen gleichzeitig laufen. CORS ist im Backend für
+`http://localhost:5173` voreingestellt.
+
+---
+
+## Produktions-Build (manuelles Deploy ohne Docker)
+
+```bash
+npm run build:frontend   # → frontend/dist/
+npm run build:backend    # → backend/dist/
+```
+
+Die einfachste produktive Variante ist das Docker-Image (siehe oben). Für
+manuelle Deployments:
+
+```bash
+# 1. Auf dem Server: Repository klonen, Build-Artefakte hochladen
+cd /opt/openformulare
+npm ci --omit=dev --workspaces
+
+# 2. Python-venv und yoyo installieren (einmalig)
+python3 -m venv /opt/openformulare/venv
+/opt/openformulare/venv/bin/pip install -r backend/requirements.txt
+
+# 3. Datenbank migrieren
+PYTHON_BIN=/opt/openformulare/venv/bin/python3 npm run migrate --workspace=backend
+
+# 4. Service starten (systemd-Unit)
+systemctl start openformulare.service
+```
+
+Beispiel-`systemd`-Unit:
+
+```ini
+[Service]
+WorkingDirectory=/opt/openformulare/backend
+EnvironmentFile=/opt/openformulare/backend/.env
+Environment=PYTHON_BIN=/opt/openformulare/venv/bin/python3
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+User=openformulare
+```
+
+Updates: neuen Build hochladen, `systemctl restart openformulare.service`.
+
+---
+
 ## Architektur
 
 ```
@@ -119,186 +358,6 @@ gespeichert; ältere Datensätze mit `strasse`/`plz`/`land` werden beim ersten
 Laden auf den reinen Ort reduziert. Diese Regel gilt für die globale
 Personen-Vorlage **und** für alle Dialoge, die `business-address` direkt im
 Schema verwenden.
-
----
-
-## Voraussetzungen
-
-Für das Docker-Image: **nur Docker** (≥ 24).
-
-Für lokale Entwicklung:
-
-- **Node.js** ≥ 20
-- **npm** ≥ 10
-- **Python** ≥ 3.9 (für yoyo-Migrationen)
-
----
-
-## Installation (lokale Entwicklung)
-
-```bash
-git clone <repo-url>
-cd openformulare
-
-# Node-Abhängigkeiten installieren (Frontend + Backend)
-npm install
-
-# Python-Abhängigkeiten für die Datenbank-Migrationen
-cd backend
-pip install -r requirements.txt
-
-# Datenbank anlegen und Default-Dialoge importieren (einmalig)
-npm run migrate
-cd ..
-
-# .env-Dateien anlegen und an die eigene Umgebung anpassen
-cp frontend/.env.example frontend/.env
-cp backend/.env.example backend/.env
-```
-
-`npm run migrate` muss nur beim ersten Setup und nach Datenbank-Schema-
-Änderungen erneut ausgeführt werden.
-
----
-
-## Konfiguration
-
-OpenFormulare hat zwei Konfigurationsebenen:
-
-1. **`.env` / Umgebungsvariablen** — Boot-Zeit-Konfiguration (Ports, Secrets,
-   Demo-Mode, Datenbankpfad).
-2. **Admin-Bereich** — Laufzeit-Konfiguration (Branding, SMTP, Mandanten-Mail-
-   Vorlage, DiNo-Schlüssel, Versand-Optionen, Personen-Vorlagen, Kontakt-Step).
-   Im Demo-Modus liegen Änderungen nur in der Session des Editors.
-
-### Frontend (`frontend/.env`)
-
-```env
-# URL des Backends (für lokale Entwicklung; im Docker-Build leer → relative Pfade)
-VITE_API_URL=http://localhost:3001
-```
-
-### Backend (`backend/.env`)
-
-Nur die Boot-Variablen sind hier zu pflegen. Alles andere lebt im Admin-
-Bereich:
-
-```env
-PORT=3001
-CORS_ORIGIN=http://localhost:5173
-
-# Demo-Modus:
-#   true  = kein Admin-Login, alle Daten leben nur in der Session,
-#           keine echten E-Mails, keine DiNo-Anbindung.
-#   false = Produktivbetrieb.
-DEMO_MODE=false
-
-# Pfad zur verschlüsselten SQLite-Datenbank
-SQLITE_PATH=./data/dialogs.sqlite
-
-# Verschlüsselungsschlüssel & Salt – im Docker-Image automatisch generiert.
-DIALOG_DB_PASSWORD=
-DIALOG_DB_SALT=
-
-# Admin-Zugangsdaten (siehe Abschnitt "Admin-Passwort setzen")
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=
-ADMIN_SESSION_SECRET=
-
-# Primärfarbe für PDF-Header (Hex ohne #) – Branding ansonsten via Admin-UI
-PRIMARY_COLOR=1a3a5c
-
-# Rate-Limit für /api/submit (pro 15 min)
-RATE_LIMIT_MAX=10
-```
-
-> SMTP-Server, Notar-E-Mail, Versandwege, DiNo-API-Key, Mandanten-E-Mail-
-> Vorlage und HTML-Signatur werden nicht mehr in der `.env` gepflegt, sondern
-> im **Admin-Bereich → Einstellungen**. Dort eingetragene Werte überschreiben
-> jegliche Fallbacks aus der `.env`.
-
----
-
-## Admin-Passwort setzen
-
-Es gibt **zwei Wege**, das Admin-Passwort zu setzen — wähle den, der zu
-deinem Deployment passt:
-
-### Weg A: Eigenes Passwort beim Start vorgeben (empfohlen)
-
-Übergebe `ADMIN_PASSWORD` (und ggf. `ADMIN_USERNAME`) als Umgebungsvariable:
-
-```bash
-# Docker
-docker run -d --name openformulare \
-  -p 3001:3001 \
-  -e CORS_ORIGIN="https://kanzlei.example.de" \
-  -e ADMIN_USERNAME="kanzlei-admin" \
-  -e ADMIN_PASSWORD="MeinSicheresPasswort!" \
-  -v openformulare-data:/data \
-  --restart unless-stopped \
-  opennotar/openformulare:latest
-```
-
-```yaml
-# docker-compose.yml
-services:
-  openformulare:
-    image: opennotar/openformulare:latest
-    environment:
-      ADMIN_USERNAME: kanzlei-admin
-      ADMIN_PASSWORD: MeinSicheresPasswort!
-      CORS_ORIGIN: https://kanzlei.example.de
-    volumes:
-      - openformulare-data:/data
-```
-
-Wird ein bereits gesetztes Passwort durch eine neue ENV-Variable
-übersteuert, übernimmt der Container den neuen Wert beim nächsten Neustart
-und persistiert ihn im Volume.
-
-> **Tipp:** Statt das Passwort direkt in die Compose-Datei zu schreiben, lieber
-> eine separate `.env`-Datei oder Docker-Secrets verwenden — niemals ins Git!
-
-### Weg B: Passwort beim ersten Start automatisch generieren lassen
-
-Setzt du **kein** `ADMIN_PASSWORD`, generiert der Container beim ersten
-Start ein zufälliges, druckbares Passwort, persistiert es unter
-`/data/.secrets/admin-password` (Permissions `600`) und gibt es **einmalig**
-im Container-Log aus:
-
-```text
-[entrypoint] ===================================================
-[entrypoint] Initiales Admin-Passwort generiert:
-[entrypoint]   Benutzer:  admin
-[entrypoint]   Passwort:  fG9k...sw23
-[entrypoint] Bitte direkt nach dem ersten Login ändern oder über
-[entrypoint] die Umgebungsvariable ADMIN_PASSWORD übersteuern.
-[entrypoint] ===================================================
-```
-
-Auslesen:
-
-```bash
-docker logs openformulare 2>&1 | grep -A2 "Admin-Passwort generiert"
-# oder:
-docker exec openformulare cat /data/.secrets/admin-password
-```
-
-Spätere Container-Neustarts lesen dasselbe Passwort wieder aus dem Volume —
-das Log bleibt dann ruhig.
-
-### Passwort später ändern
-
-- **Per ENV:** Container mit neuem `ADMIN_PASSWORD` starten — überschreibt
-  die Datei im Volume.
-- **Per Volume:** Den Inhalt von `/data/.secrets/admin-password` durch das
-  neue Passwort ersetzen, Container neu starten.
-- **Per UI:** _(in Vorbereitung – aktuell nur über die obigen Wege)_
-
-Dieselben zwei Wege gelten auch für `ADMIN_SESSION_SECRET`,
-`DIALOG_DB_PASSWORD` und `DIALOG_DB_SALT`: setzen oder vom Container beim
-ersten Start generieren lassen.
 
 ---
 
@@ -412,65 +471,6 @@ Mit Compose: `docker compose pull && docker compose up -d`.
   für lokale Tests sinnvoll.
 - Volume-Backups regelmäßig erstellen — die SQLite-Datei ist verschlüsselt;
   ohne den DB-Schlüssel im selben Volume sind Backups unbrauchbar.
-
----
-
-## Entwicklung
-
-Lokale Entwicklung mit getrenntem Frontend (5173) und Backend (3001):
-
-```bash
-# Frontend (Vite, Port 5173)
-npm run dev:frontend
-
-# Backend (ts-node-dev, Port 3001)
-npm run dev:backend
-```
-
-Frontend und Backend müssen gleichzeitig laufen. CORS ist im Backend für
-`http://localhost:5173` voreingestellt.
-
----
-
-## Produktions-Build (manuelles Deploy ohne Docker)
-
-```bash
-npm run build:frontend   # → frontend/dist/
-npm run build:backend    # → backend/dist/
-```
-
-Die einfachste produktive Variante ist das Docker-Image (siehe oben). Für
-manuelle Deployments:
-
-```bash
-# 1. Auf dem Server: Repository klonen, Build-Artefakte hochladen
-cd /opt/openformulare
-npm ci --omit=dev --workspaces
-
-# 2. Python-venv und yoyo installieren (einmalig)
-python3 -m venv /opt/openformulare/venv
-/opt/openformulare/venv/bin/pip install -r backend/requirements.txt
-
-# 3. Datenbank migrieren
-PYTHON_BIN=/opt/openformulare/venv/bin/python3 npm run migrate --workspace=backend
-
-# 4. Service starten (systemd-Unit)
-systemctl start openformulare.service
-```
-
-Beispiel-`systemd`-Unit:
-
-```ini
-[Service]
-WorkingDirectory=/opt/openformulare/backend
-EnvironmentFile=/opt/openformulare/backend/.env
-Environment=PYTHON_BIN=/opt/openformulare/venv/bin/python3
-ExecStart=/usr/bin/node dist/index.js
-Restart=on-failure
-User=openformulare
-```
-
-Updates: neuen Build hochladen, `systemctl restart openformulare.service`.
 
 ---
 
