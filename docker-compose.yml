@@ -1,0 +1,38 @@
+# OpenFormulare – lokale Nutzung des fertigen Images.
+#
+#   docker compose pull        # Image von DockerHub holen
+#   docker compose up -d       # Container starten
+#   docker compose logs -f     # Logs anschauen (initiales Admin-PW steht beim ersten Start im Log)
+#   docker compose pull && docker compose up -d   # auf neue Version aktualisieren
+#
+# Für lokale Builds einfach `image:` auskommentieren und `build: .` aktivieren.
+
+services:
+  openformulare:
+    image: opennotar/openformulare:latest
+    # build: .
+    container_name: openformulare
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # CORS_ORIGIN auf die öffentliche Zieldomain setzen, z.B. https://kanzlei.example.de.
+      # "*" akzeptiert alles und ist nur für Tests sinnvoll.
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      # Optional. Wenn nicht gesetzt, generiert der Container beim ersten Start
+      # ein zufälliges Admin-Passwort und schreibt es in die Logs (einmalig).
+      # ADMIN_USERNAME: admin
+      # ADMIN_PASSWORD: changeme
+      # Optional: Demo-Modus (kein Login, keine echten E-Mails, keine DiNo-Anbindung).
+      DEMO_MODE: "${DEMO_MODE:-false}"
+    volumes:
+      - openformulare-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  openformulare-data:

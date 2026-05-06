@@ -1,0 +1,41 @@
+# Keep the build context lean: only sources, manifests, lockfiles needed.
+node_modules
+**/node_modules
+**/dist
+**/build
+
+# Local data, debug artefacts and dev databases
+DebugDump
+data
+backend/data
+*.sqlite
+*.sqlite-*
+
+# Local secrets / env files (never bake into the image)
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Python virtualenv
+venv
+**/__pycache__
+**/*.pyc
+
+# Editor / VCS / OS
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Tooling artefacts
+*.log
+coverage
+extract-schemas.*ts
+edit_dialog.txt
+
+# Docker manifests are picked up explicitly
+Dockerfile
+docker-compose.yml
+.dockerignore

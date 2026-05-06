@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #1a3a5c;
+  --color-primary-dark: #0f2440;
+  --color-accent: #c8a96e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f8f9fa;
+}
+
+/*
+ * German hyphenation for dialog text. The browser uses the language declared
+ * on <html lang="de"> together with `hyphens: auto` to apply CHE/EVD-style
+ * Silbentrennung (built into modern Firefox, Chromium and Safari).
+ *
+ * Applied to:
+ *   - generic block text inside the form wizard / step content
+ *   - field labels, help texts, info / hint blocks, placeholders
+ *   - dialog descriptions on the public home page
+ *
+ * `overflow-wrap: break-word` is added as a fallback so unusually long
+ * compound words (e.g. URLs, register numbers) still wrap safely if the
+ * hyphenation engine cannot find a suitable break point.
+ */
+.hyphens-de,
+.hyphens-de p,
+.hyphens-de label,
+.hyphens-de span,
+.hyphens-de h1,
+.hyphens-de h2,
+.hyphens-de h3,
+.hyphens-de h4,
+.hyphens-de li,
+.hyphens-de td,
+.hyphens-de div {
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* Don't break mid-word inside form controls themselves – their typography
+   should stay on a single baseline. The wrapper around them does the work. */
+.hyphens-de input,
+.hyphens-de select,
+.hyphens-de textarea,
+.hyphens-de button,
+.hyphens-de code {
+  -webkit-hyphens: manual;
+  hyphens: manual;
+  overflow-wrap: normal;
+}
+
+@layer utilities {
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-primary-dark {
+    background-color: var(--color-primary-dark);
+  }
+  .text-primary {
+    color: var(--color-primary);
+  }
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  .ring-primary {
+    --tw-ring-color: var(--color-primary);
+  }
+  .bg-accent {
+    background-color: var(--color-accent);
+  }
+  .text-accent {
+    color: var(--color-accent);
+  }
+}

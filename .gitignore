@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# Python
+*.pyc
+__pycache__/
+
+# Vite
+.vite/
+
+# Puppeteer cache
+.cache/puppeteer/
+
+# Debug dumps (local development only)
+DebugDump/
+
+# Local SQLite databases
+backend/data/
+
+# Datenbank
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
