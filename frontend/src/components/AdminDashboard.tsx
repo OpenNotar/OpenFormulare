@@ -130,6 +130,9 @@ export function AdminDashboard() {
             <Link to="/admin/settings" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
               Einstellungen
             </Link>
+            <Link to="/admin/plugins" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
+              Plugins
+            </Link>
             <Link to="/" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
               Öffentliche Ansicht
             </Link>

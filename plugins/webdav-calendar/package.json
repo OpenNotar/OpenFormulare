@@ -1,0 +1,14 @@
+{
+  "name": "openformulare-plugin-webdav-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebDAV/CalDAV calendar integration plugin for OpenFormulare.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

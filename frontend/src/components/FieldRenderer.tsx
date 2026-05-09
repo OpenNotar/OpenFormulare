@@ -18,6 +18,12 @@ import { InfoField } from './fields/InfoField';
 import { PersonField, NaturalPersonField, LegalPersonField } from './fields/PersonFields';
 import { CalculationField } from './fields/CalculationField';
 import { EmbedField } from './fields/EmbedField';
+import {
+  StarsField,
+  ScaleField,
+  YesNoField,
+} from './fields/RatingField';
+import { PluginField } from './fields/PluginField';
 
 interface Props {
   field: FormField;
@@ -84,7 +90,15 @@ function renderField(field: FormField, prefix?: string) {
       return <CalculationField field={field} prefix={prefix} />;
     case 'embed':
       return <EmbedField field={field} prefix={prefix} />;
+    case 'stars':
+      return <StarsField field={field} prefix={prefix} />;
+    case 'scale':
+      return <ScaleField field={field} prefix={prefix} />;
+    case 'yesno':
+      return <YesNoField field={field} prefix={prefix} />;
     default:
-      return null;
+      // Unknown type → assume it was contributed by a plugin and let the
+      // generic plugin renderer resolve its metadata.
+      return <PluginField field={field} prefix={prefix} />;
   }
 }

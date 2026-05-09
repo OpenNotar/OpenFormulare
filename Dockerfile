@@ -47,6 +47,19 @@ RUN VITE_API_URL='' npm run build:frontend
 # Compile the backend and copy the seed fixtures into dist/.
 RUN npm run build:backend
 
+# Build any plugins shipped with the image. Plugins are independent npm
+# projects under /plugins; we install + build each one. We rely on the
+# backend's typescript compiler that's already on PATH inside the workspace.
+COPY plugins plugins
+RUN if [ -d plugins ]; then \
+        for dir in plugins/*/; do \
+            if [ -f "$dir/package.json" ]; then \
+                echo "[plugins] building $dir"; \
+                (cd "$dir" && npx --yes -p typescript@5.4 tsc -p tsconfig.json) || exit 1; \
+            fi; \
+        done; \
+    fi
+
 # Drop dev dependencies for the runtime image.
 RUN npm prune --omit=dev --workspaces --include-workspace-root
 
@@ -72,6 +85,7 @@ ENV NODE_ENV=production \
     SQLITE_PATH=/data/dialogs.sqlite \
     YOYO_MIGRATIONS_DIR=/app/backend/migrations \
     FRONTEND_DIST_DIR=/app/frontend/dist \
+    PLUGINS_DIR=/app/plugins \
     DEMO_MODE=false \
     CORS_ORIGIN=*
 
@@ -86,6 +100,7 @@ COPY --from=builder /build/backend/migrations           ./backend/migrations
 COPY --from=builder /build/backend/scripts              ./backend/scripts
 COPY --from=builder /build/backend/package.json         ./backend/package.json
 COPY --from=builder /build/frontend/dist                ./frontend/dist
+COPY --from=builder /build/plugins                      ./plugins
 COPY --from=builder /build/package.json                 ./package.json
 
 # Entrypoint: generate secrets on first start, run migrations, exec the server.

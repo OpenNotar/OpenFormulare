@@ -8,6 +8,8 @@ import { sendEmail } from '../services/email';
 import { mapToDiNo } from '../services/dinoMapper';
 import { insertSubmission } from '../db/submissions';
 import { isDemoMode, getDispatchConfig, getEmailConfig } from '../services/runtimeMode';
+import { emit as emitPluginEvent } from '../plugins/hookBus';
+import { getDialog } from '../db/database';
 
 const router = Router();
 
@@ -45,6 +47,18 @@ router.post('/', upload.array('files'), async (req, res) => {
     const data = JSON.parse(dataStr) as Record<string, unknown>;
     const formSchema = schemaStr ? JSON.parse(schemaStr) : undefined;
     const files = (req.files as Express.Multer.File[]) || [];
+
+    // Plugins get a chance to inspect / mutate the submission before any
+    // side effects run (DB write, email, DiNo). Plugin errors do not block
+    // the submission – they are logged + collected on the registry.
+    const dialogRecord = getDialog(formType);
+    if (dialogRecord) {
+      await emitPluginEvent('dialog:beforeSubmit', {
+        dialogId: formType,
+        dialog: dialogRecord,
+        submission: data,
+      });
+    }
 
     if (isDemoMode()) {
       // Demo mode: never persist, never email, never queue for DiNo.
@@ -100,6 +114,15 @@ router.post('/', upload.array('files'), async (req, res) => {
     }
 
     await Promise.all(tasks);
+
+    if (dialogRecord) {
+      await emitPluginEvent('dialog:submitted', {
+        dialogId: formType,
+        dialog: dialogRecord,
+        submission: data,
+        submittedAt: new Date().toISOString(),
+      });
+    }
 
     res.json({ success: true });
   } catch (err) {

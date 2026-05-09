@@ -8,6 +8,12 @@ interface SchemaField {
   fields?: SchemaField[];     // repeater sub-fields
   countField?: string;        // repeater count reference
   condition?: { fieldId: string; operator: string; value: unknown };
+  // Rating-spezifisch
+  maxStars?: number;
+  min?: number;
+  max?: number;
+  yesLabel?: string;
+  noLabel?: string;
 }
 interface SchemaStep { id: string; title: string; fields: SchemaField[]; }
 interface FormSchema { id: string; title: string; steps: SchemaStep[]; }
@@ -118,6 +124,29 @@ function renderField(field: SchemaField, data: Record<string, unknown>, prefix: 
 
   if (field.type === 'checkbox') {
     return row(field.label, value ? 'Ja ✓' : '');
+  }
+
+  // Rating-Felder typabhaengig formatieren.
+  if (field.type === 'stars') {
+    const n = Number(value);
+    if (Number.isNaN(n)) return row(field.label, String(value));
+    const max = field.maxStars ?? 5;
+    const filled = '★'.repeat(Math.max(0, Math.min(max, Math.round(n))));
+    const empty = '☆'.repeat(Math.max(0, max - Math.round(n)));
+    return row(field.label, `${filled}${empty} (${n}/${max})`);
+  }
+  if (field.type === 'scale') {
+    const min = field.min ?? 1;
+    const max = field.max ?? 10;
+    return row(field.label, `${value} (Skala ${min}–${max})`);
+  }
+  if (field.type === 'yesno') {
+    if (value === true || value === 'yes' || value === 1 || value === '1') {
+      return row(field.label, field.yesLabel ?? 'Ja');
+    }
+    if (value === false || value === 'no' || value === 0 || value === '0') {
+      return row(field.label, field.noLabel ?? 'Nein');
+    }
   }
 
   return row(field.label, String(value));

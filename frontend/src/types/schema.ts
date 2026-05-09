@@ -30,7 +30,12 @@ export type FieldType =
   // Multi-select – like select, but the value is a string[] of all
   // checked options. Combine with the `contains` / `notContains`
   // condition operators to react to specific selections.
-  | 'multi-select';
+  | 'multi-select'
+  // Bewertungs-Felder: nutzbar in eigenstaendigen OF-Dialogen sowie in
+  // DiNo-getriebenen Bewertungsboegen.
+  | 'stars'
+  | 'scale'
+  | 'yesno';
 
 export type ConditionOperator =
   | 'eq' | 'neq' | 'in'
@@ -281,6 +286,36 @@ export interface LegalPersonField extends BaseField {
   fieldOverrides?: PersonFieldOverrides;
 }
 
+// Bewertungs-Felder.
+// Verfuegbar in eigenstaendigen OF-Dialogen UND in DiNo-Bewertungsboegen.
+// Der Wert in der Submission ist:
+//  - stars/scale: number (gewählter Wert)
+//  - yesno:       'yes' | 'no' (string fuer einheitliche Behandlung mit
+//                 select/radio in conditions / export)
+export interface StarsField extends BaseField {
+  type: 'stars';
+  /** Maximale Anzahl Sterne (Default 5). */
+  maxStars?: number;
+}
+
+export interface ScaleField extends BaseField {
+  type: 'scale';
+  /** Untere Skalengrenze (inklusive, Default 1). */
+  min?: number;
+  /** Obere Skalengrenze (inklusive, Default 10). */
+  max?: number;
+  /** Beschriftung am linken Skalenende. */
+  minLabel?: string;
+  /** Beschriftung am rechten Skalenende. */
+  maxLabel?: string;
+}
+
+export interface YesNoField extends BaseField {
+  type: 'yesno';
+  yesLabel?: string;
+  noLabel?: string;
+}
+
 export type FormField =
   | InputField
   | NumberField
@@ -299,7 +334,10 @@ export type FormField =
   | NaturalPersonField
   | LegalPersonField
   | CalculationField
-  | EmbedField;
+  | EmbedField
+  | StarsField
+  | ScaleField
+  | YesNoField;
 
 export interface FormStep {
   id: string;

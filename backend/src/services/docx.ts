@@ -11,6 +11,12 @@ interface SchemaField {
   fields?: SchemaField[];
   countField?: string;
   condition?: { fieldId: string; operator: string; value: unknown };
+  // Rating-spezifisch
+  maxStars?: number;
+  min?: number;
+  max?: number;
+  yesLabel?: string;
+  noLabel?: string;
 }
 interface SchemaStep { id: string; title: string; fields: SchemaField[]; }
 interface FormSchema { id: string; title: string; steps: SchemaStep[]; }
@@ -35,6 +41,32 @@ function evaluateCondition(condition: SchemaField['condition'], data: Record<str
     case 'gte': return Number(value) >= Number(condition.value);
     default: return true;
   }
+}
+
+function formatRatingValue(field: SchemaField, value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (field.type === 'stars') {
+    const n = Number(value);
+    if (Number.isNaN(n)) return String(value);
+    const max = field.maxStars ?? 5;
+    return `${n} / ${max} ★`;
+  }
+  if (field.type === 'scale') {
+    const n = Number(value);
+    if (Number.isNaN(n)) return String(value);
+    const min = field.min ?? 1;
+    const max = field.max ?? 10;
+    return `${n} (Skala ${min}–${max})`;
+  }
+  if (field.type === 'yesno') {
+    if (value === true || value === 'yes' || value === 1 || value === '1') {
+      return field.yesLabel ?? 'Ja';
+    }
+    if (value === false || value === 'no' || value === 0 || value === '0') {
+      return field.noLabel ?? 'Nein';
+    }
+  }
+  return null;
 }
 
 function formatValue(value: unknown): string {
@@ -105,6 +137,13 @@ function renderField(field: SchemaField, data: Record<string, unknown>, rows: Ta
   }
 
   if (field.type === 'info') return; // hint text, no data
+
+  // Rating-Felder typabhaengig formatieren ("4 / 5 ★", "Ja/Nein", ...).
+  if (field.type === 'stars' || field.type === 'scale' || field.type === 'yesno') {
+    const formatted = formatRatingValue(field, data[field.id]);
+    rows.push(fieldRow(field.label, formatted ?? '–'));
+    return;
+  }
 
   rows.push(fieldRow(field.label, formatValue(data[field.id])));
 }

@@ -5,13 +5,19 @@ import path from 'path';
 import fs from 'fs';
 import adminAuthRouter from './routes/adminAuth';
 import adminDialogsRouter from './routes/adminDialogs';
+import adminPluginsRouter from './routes/adminPlugins';
+import { buildPluginPublicRouter } from './routes/pluginPublic';
 import { getDatabase } from './db/database';
 import dialogsRouter from './routes/dialogs';
 import submitRouter from './routes/submit';
 import dinoRouter from './routes/dino';
+import dinoRatingRouter from './routes/dinoRating';
+import ratingRouter from './routes/rating';
+import adminRatingRouter from './routes/adminRating';
 import { adminRouter as settingsAdminRouter, publicRouter as settingsPublicRouter } from './routes/settings';
 import { demoSession } from './middleware/demoSession';
 import { isDemoMode, isDinoEnabled, isEmailEnabled } from './services/runtimeMode';
+import { loadPlugins } from './plugins/loader';
 
 const app = express();
 const port = parseInt(process.env.PORT || '3001', 10);
@@ -31,10 +37,14 @@ app.use(demoSession);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dialogs', adminDialogsRouter);
 app.use('/api/admin/settings', settingsAdminRouter);
+app.use('/api/admin/rating', adminRatingRouter);
+app.use('/api/admin/plugins', adminPluginsRouter);
 app.use('/api/dialogs', dialogsRouter);
 app.use('/api/settings', settingsPublicRouter);
 app.use('/api/submit', submitRouter);
 app.use('/api/dino', dinoRouter);
+app.use('/api/dino/rating', dinoRatingRouter);
+app.use('/api/rating', ratingRouter);
 
 app.get('/health', (req, res) => {
   res.json({
@@ -61,9 +71,18 @@ if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
   console.log(`[server] Frontend bundle not found at ${frontendDist} — running API-only`);
 }
 
-app.listen(port, () => {
-  console.log(
-    `Backend running on http://localhost:${port} ` +
-      `[demo=${isDemoMode()} dino=${isDinoEnabled()} email=${isEmailEnabled()}]`,
-  );
-});
+// Load plugins, then mount their public routes (under /api/plugins/<id>) and
+// start the HTTP listener. Plugin loading is async because activation hooks
+// may perform IO (e.g. open a CalDAV session).
+loadPlugins()
+  .catch((err) => console.warn('[plugins] loadPlugins failed:', err))
+  .finally(() => {
+    app.use('/api/plugins', buildPluginPublicRouter());
+
+    app.listen(port, () => {
+      console.log(
+        `Backend running on http://localhost:${port} ` +
+          `[demo=${isDemoMode()} dino=${isDinoEnabled()} email=${isEmailEnabled()}]`,
+      );
+    });
+  });

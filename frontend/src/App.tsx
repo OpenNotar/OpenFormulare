@@ -3,10 +3,12 @@ import { BrowserRouter, Routes, Route, Link, useParams, useNavigate, Navigate, O
 import { useTheme } from './hooks/useTheme';
 import { FormWizard } from './components/FormWizard';
 import { PublicHomePage } from './components/PublicHomePage';
+import { RatingPage } from './components/RatingPage';
 import { FormEditor } from './components/FormEditor';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AdminLoginPage } from './components/AdminLoginPage';
 import { AdminSettings } from './components/AdminSettings';
+import { AdminPlugins } from './components/AdminPlugins';
 import { createDialog, getAdminDialog, getDialog, updateDialog } from './lib/dialogsApi';
 import type { DialogRecord } from './lib/dialogsApi';
 import { isAdminAuthenticated, verifyAdminSession } from './lib/adminAuth';
@@ -232,10 +234,12 @@ export default function App() {
         <Route element={<RequireAdmin runtimeMode={runtimeMode} />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/plugins" element={<AdminPlugins />} />
           <Route path="/admin/dialogs/new" element={<NewEditorPage />} />
           <Route path="/admin/dialogs/:id/edit" element={<AdminEditEditorPage />} />
         </Route>
         <Route path="/" element={<PublicHomePage />} />
+        <Route path="/r/:token" element={<RatingPage />} />
         <Route path="/:route" element={<DialogRoutePage />} />
       </Routes>
     </BrowserRouter>

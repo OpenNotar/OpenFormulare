@@ -21,6 +21,7 @@ import type {
 import { resolveOption } from '../../types/schema';
 import { usePersonTemplates } from '../../hooks/usePersonTemplates';
 import { listDialogs, type DialogRecord } from '../../lib/dialogsApi';
+import { listPluginFieldTypes, type PluginFieldTypeInfo } from '../../lib/pluginsApi';
 
 // ---------------------------------------------------------------------------
 // Field type registry
@@ -39,6 +40,9 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   'legal-person': 'Juristische Person',
   calculation: 'Berechnungsfeld',
   embed: 'Anderen Dialog einbetten',
+  stars: 'Bewertung (Sterne)',
+  scale: 'Bewertung (Skala)',
+  yesno: 'Ja / Nein',
 };
 
 // Types the user can add via the editor's "+ Feld hinzufügen" toolbar.
@@ -48,6 +52,7 @@ export const SIMPLE_TYPES: FieldType[] = [
   'text', 'email', 'tel', 'number', 'textarea', 'date', 'select', 'radio',
   'multi-select', 'checkbox', 'file', 'repeater', 'address', 'info',
   'calculation', 'person', 'natural-person', 'legal-person', 'embed',
+  'stars', 'scale', 'yesno',
 ];
 
 export function slugify(str: string): string {
@@ -102,6 +107,12 @@ export function makeEmptyField(type: FieldType, label = 'Neues Feld'): FormField
       };
     case 'embed':
       return { ...base, type, label: 'Eingebetteter Dialog', dialogId: '' };
+    case 'stars':
+      return { ...base, type, label: 'Bewertung', maxStars: 5 };
+    case 'scale':
+      return { ...base, type, label: 'Bewertung', min: 1, max: 10 };
+    case 'yesno':
+      return { ...base, type, label: 'Ja / Nein', yesLabel: 'Ja', noLabel: 'Nein' };
   }
 }
 
@@ -124,6 +135,9 @@ const CONDITIONABLE_TYPES = new Set([
   'checkbox',
   'multi-select',
   'calculation',
+  'stars',
+  'scale',
+  'yesno',
 ]);
 
 export function collectConditionFields(
@@ -558,6 +572,91 @@ export function FieldConfigPanel({ field, stepIdx, schema, onChange, excludedTyp
         />
       )}
 
+      {/* Rating: Stars */}
+      {field.type === 'stars' && (
+        <div>
+          <label className={labelClass}>Anzahl Sterne</label>
+          <input
+            className={inputClass}
+            type="number"
+            min={2}
+            max={10}
+            value={(f.maxStars as number | undefined) ?? 5}
+            onChange={(e) =>
+              set('maxStars', e.target.value === '' ? undefined : Number(e.target.value))
+            }
+          />
+        </div>
+      )}
+
+      {/* Rating: Scale */}
+      {field.type === 'scale' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Skala von</label>
+            <input
+              className={inputClass}
+              type="number"
+              value={(f.min as number | undefined) ?? 1}
+              onChange={(e) =>
+                set('min', e.target.value === '' ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
+          <div>
+            <label className={labelClass}>bis</label>
+            <input
+              className={inputClass}
+              type="number"
+              value={(f.max as number | undefined) ?? 10}
+              onChange={(e) =>
+                set('max', e.target.value === '' ? undefined : Number(e.target.value))
+              }
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Beschriftung links</label>
+            <input
+              className={inputClass}
+              value={(f.minLabel as string | undefined) ?? ''}
+              onChange={(e) => set('minLabel', e.target.value || undefined)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Beschriftung rechts</label>
+            <input
+              className={inputClass}
+              value={(f.maxLabel as string | undefined) ?? ''}
+              onChange={(e) => set('maxLabel', e.target.value || undefined)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Rating: Yes / No */}
+      {field.type === 'yesno' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Beschriftung "Ja"</label>
+            <input
+              className={inputClass}
+              value={(f.yesLabel as string | undefined) ?? ''}
+              placeholder="Ja"
+              onChange={(e) => set('yesLabel', e.target.value || undefined)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Beschriftung "Nein"</label>
+            <input
+              className={inputClass}
+              value={(f.noLabel as string | undefined) ?? ''}
+              placeholder="Nein"
+              onChange={(e) => set('noLabel', e.target.value || undefined)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* HelpText */}
       <div>
         <label className={labelClass}>Hilfetext <span className="font-normal text-gray-400">(optional)</span></label>
@@ -661,6 +760,15 @@ export interface FieldListEditorProps {
 
 export function FieldListEditor({ fields, onChange, fauxStepId = 'kontakt', disabled, banner, excludedTypes, layout = 'split' }: FieldListEditorProps) {
   const [activeFieldIdx, setActiveFieldIdx] = useState<number | null>(null);
+  const [pluginFieldTypes, setPluginFieldTypes] = useState<PluginFieldTypeInfo[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPluginFieldTypes().then((items) => {
+      if (!cancelled) setPluginFieldTypes(items);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const fauxSchema: FormSchema = {
     id: 'editor-faux',
@@ -675,6 +783,23 @@ export function FieldListEditor({ fields, onChange, fauxStepId = 'kontakt', disa
   function addField(type: FieldType) {
     if (disabled) return;
     const f = makeEmptyField(type);
+    onChange([...fields, f]);
+    setActiveFieldIdx(fields.length);
+  }
+
+  function addPluginField(info: PluginFieldTypeInfo) {
+    if (disabled) return;
+    const id = slugify(info.label) + '_' + Date.now();
+    // Plugin field types are not in the FieldType union; we cast through
+    // unknown so the schema accepts them. The runtime renderer (PluginField)
+    // looks up the type id in the registry to decide how to render.
+    const f = {
+      id,
+      label: info.label,
+      required: false,
+      type: info.id,
+      ...(info.defaultProps ?? {}),
+    } as unknown as FormField;
     onChange([...fields, f]);
     setActiveFieldIdx(fields.length);
   }
@@ -719,7 +844,11 @@ export function FieldListEditor({ fields, onChange, fauxStepId = 'kontakt', disa
                   {field.required && <span className="text-red-400 text-xs">*</span>}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span className="text-xs text-gray-400">{FIELD_TYPE_LABELS[field.type]}</span>
+                  <span className="text-xs text-gray-400">
+                    {FIELD_TYPE_LABELS[field.type]
+                      ?? pluginFieldTypes.find((p) => p.id === field.type)?.label
+                      ?? field.type}
+                  </span>
                   <span className="text-xs text-gray-300 font-mono">{field.id}</span>
                   {field.condition && <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 rounded px-1">bedingt</span>}
                   {field.type === 'repeater' && (field as { countField?: string }).countField && (
@@ -752,16 +881,37 @@ export function FieldListEditor({ fields, onChange, fauxStepId = 'kontakt', disa
         </div>
 
         {!disabled && (
-          <div className="bg-white border-t border-gray-200 px-4 py-3">
-            <p className="text-xs text-gray-500 mb-2">Feld hinzufügen:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {SIMPLE_TYPES.filter((t) => !excludedTypes?.includes(t)).map((type) => (
-                <button key={type} onClick={() => addField(type)}
-                  className="text-xs px-2.5 py-1 border border-gray-300 rounded-full hover:border-primary hover:text-primary transition-colors">
-                  + {FIELD_TYPE_LABELS[type]}
-                </button>
-              ))}
+          <div className="bg-white border-t border-gray-200 px-4 py-3 space-y-2">
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Feld hinzufügen:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SIMPLE_TYPES.filter((t) => !excludedTypes?.includes(t)).map((type) => (
+                  <button key={type} onClick={() => addField(type)}
+                    className="text-xs px-2.5 py-1 border border-gray-300 rounded-full hover:border-primary hover:text-primary transition-colors">
+                    + {FIELD_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
             </div>
+            {pluginFieldTypes.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-500 mb-2">
+                  Plugin-Felder:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {pluginFieldTypes.map((info) => (
+                    <button
+                      key={`${info.pluginId}:${info.id}`}
+                      onClick={() => addPluginField(info)}
+                      title={info.description ? `${info.description} · Plugin: ${info.pluginId}` : `Plugin: ${info.pluginId}`}
+                      className="text-xs px-2.5 py-1 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-full hover:border-emerald-500 hover:bg-emerald-100 transition-colors"
+                    >
+                      + {info.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

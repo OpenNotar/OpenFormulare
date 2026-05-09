@@ -18,7 +18,10 @@ export type FieldType =
   | 'legal-person'
   | 'calculation'
   | 'embed'
-  | 'multi-select';
+  | 'multi-select'
+  | 'stars'
+  | 'scale'
+  | 'yesno';
 
 export type ConditionOperator =
   | 'eq' | 'neq' | 'in'
@@ -173,6 +176,32 @@ export interface CalculationField extends BaseField {
   hideIfIncomplete?: boolean;
 }
 
+export interface StarsField extends BaseField {
+  type: 'stars';
+  /** Maximale Anzahl Sterne (Default 5). */
+  maxStars?: number;
+}
+
+export interface ScaleField extends BaseField {
+  type: 'scale';
+  /** Untere Skalengrenze (inklusive, Default 1). */
+  min?: number;
+  /** Obere Skalengrenze (inklusive, Default 10). */
+  max?: number;
+  /** Optional: Beschriftung am linken Skalenende. */
+  minLabel?: string;
+  /** Optional: Beschriftung am rechten Skalenende. */
+  maxLabel?: string;
+}
+
+export interface YesNoField extends BaseField {
+  type: 'yesno';
+  /** Beschriftung der Ja-Option (Default "Ja"). */
+  yesLabel?: string;
+  /** Beschriftung der Nein-Option (Default "Nein"). */
+  noLabel?: string;
+}
+
 export interface PersonField extends BaseField {
   type: 'person';
   fieldOverrides?: PersonFieldOverrides;
@@ -205,7 +234,10 @@ export type FormField =
   | NaturalPersonField
   | LegalPersonField
   | CalculationField
-  | EmbedField;
+  | EmbedField
+  | StarsField
+  | ScaleField
+  | YesNoField;
 
 export interface FormStep {
   id: string;
