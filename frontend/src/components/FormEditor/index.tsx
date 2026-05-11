@@ -9,6 +9,7 @@ import {
   listVersions, restoreVersion,
   type DialogVersion,
 } from '../../lib/dialogsApi';
+import { listPluginFieldTypes, type PluginFieldTypeInfo } from '../../lib/pluginsApi';
 import {
   FIELD_TYPE_LABELS,
   SIMPLE_TYPES,
@@ -51,6 +52,16 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
   const [preview, setPreview] = useState(false);
   const [saveNote, setSaveNote] = useState('');
   const [saveError, setSaveError] = useState('');
+
+  // Plugin-Field-Typen (z. B. Terminfindung) — beim Mount asynchron laden.
+  const [pluginFieldTypes, setPluginFieldTypes] = useState<PluginFieldTypeInfo[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    listPluginFieldTypes().then((items) => {
+      if (!cancelled) setPluginFieldTypes(items);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Locking
   const dialogId = initialSchema?.id;
@@ -178,6 +189,23 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
   function addField(type: FieldType) {
     if (!activeStep) return;
     const field = makeEmptyField(type);
+    updateStep(activeStepIdx, { fields: [...activeStep.fields, field] });
+    setActiveFieldIdx(activeStep.fields.length);
+  }
+
+  // Plugin-Felder werden zur Laufzeit registriert; ihre Typ-ID gehört nicht
+  // zur statischen FieldType-Union. Wir bauen das Feld direkt und casten beim
+  // Schreiben in die Schema-Struktur.
+  function addPluginField(info: PluginFieldTypeInfo) {
+    if (!activeStep) return;
+    const id = slugify(info.label) + '_' + Date.now();
+    const field = {
+      id,
+      label: info.label,
+      required: false,
+      type: info.id,
+      ...(info.defaultProps ?? {}),
+    } as unknown as FormField;
     updateStep(activeStepIdx, { fields: [...activeStep.fields, field] });
     setActiveFieldIdx(activeStep.fields.length);
   }
@@ -471,7 +499,11 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
                         {field.required && <span className="text-red-400 text-xs">*</span>}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400">{FIELD_TYPE_LABELS[field.type]}</span>
+                        <span className="text-xs text-gray-400">
+                          {FIELD_TYPE_LABELS[field.type]
+                            ?? pluginFieldTypes.find((p) => p.id === field.type)?.label
+                            ?? field.type}
+                        </span>
                         <span className="text-xs text-gray-300 font-mono">{field.id}</span>
                         {field.condition && <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 rounded px-1">bedingt</span>}
                       </div>
@@ -489,16 +521,35 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
               </div>
 
               {/* Add field toolbar */}
-              <div className="bg-white border-t border-gray-200 px-4 py-3">
-                <p className="text-xs text-gray-500 mb-2">Feld hinzufügen:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {SIMPLE_TYPES.map((type) => (
-                    <button key={type} onClick={() => addField(type)}
-                      className="text-xs px-2.5 py-1 border border-gray-300 rounded-full hover:border-primary hover:text-primary transition-colors">
-                      + {FIELD_TYPE_LABELS[type]}
-                    </button>
-                  ))}
+              <div className="bg-white border-t border-gray-200 px-4 py-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Feld hinzufügen:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SIMPLE_TYPES.map((type) => (
+                      <button key={type} onClick={() => addField(type)}
+                        className="text-xs px-2.5 py-1 border border-gray-300 rounded-full hover:border-primary hover:text-primary transition-colors">
+                        + {FIELD_TYPE_LABELS[type]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {pluginFieldTypes.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Plugin-Felder:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {pluginFieldTypes.map((info) => (
+                        <button
+                          key={`${info.pluginId}:${info.id}`}
+                          onClick={() => addPluginField(info)}
+                          title={info.description ? `${info.description} · Plugin: ${info.pluginId}` : `Plugin: ${info.pluginId}`}
+                          className="text-xs px-2.5 py-1 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-full hover:border-emerald-500 hover:bg-emerald-100 transition-colors"
+                        >
+                          + {info.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -552,6 +603,21 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
                     className="w-4 h-4 accent-primary"
                   />
                   <span className="text-sm text-gray-700">Dialog ist aktiv</span>
+                </label>
+                <label className={`flex items-start gap-2 cursor-pointer ${schema.isActive === false ? 'opacity-50' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!schema.unlisted}
+                    disabled={schema.isActive === false}
+                    onChange={(e) => updateSchema({ unlisted: e.target.checked || undefined })}
+                    className="w-4 h-4 accent-primary mt-0.5"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Versteckt
+                    <span className="block text-xs text-gray-500">
+                      Nur per Direkt-Link erreichbar — taucht nicht in der öffentlichen Übersicht für Mandanten auf.
+                    </span>
+                  </span>
                 </label>
               </div>
 

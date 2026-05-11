@@ -2,6 +2,11 @@
 // activate/deactivate lifecycle.
 
 import { getDialog, listDialogs } from '../db/database';
+import {
+  getConfiguredSenderEmail,
+  getConfiguredSenderName,
+  sendGenericMail,
+} from '../services/email';
 import { getPluginSettings, setPluginSetting } from './store';
 import type { PluginContext, PluginLogger, PluginManifest, PluginSettingsApi } from './types';
 
@@ -38,15 +43,31 @@ function makeSettingsApi(pluginId: string): PluginSettingsApi {
 }
 
 export function buildContext(manifest: PluginManifest): PluginContext {
+  const log = makeLogger(manifest.id);
   return {
     pluginId: manifest.id,
     pluginVersion: manifest.version,
-    log: makeLogger(manifest.id),
+    log,
     settings: makeSettingsApi(manifest.id),
     core: {
       getDialog: (id) => getDialog(id),
       listDialogs: () => listDialogs(),
       getDialogSchema: (id) => getDialog(id),
+      sendEmail: async (opts) => {
+        try {
+          await sendGenericMail(opts);
+        } catch (err) {
+          // Fehler wird geloggt — Plugins können das try/catch'en, aber Hooks
+          // sollen normalerweise nicht crashen, wenn der Mail-Versand scheitert.
+          log.error('sendEmail fehlgeschlagen', {
+            error: err instanceof Error ? err.message : String(err),
+            to: opts.to,
+          });
+          throw err;
+        }
+      },
+      getSenderEmail: () => getConfiguredSenderEmail(),
+      getSenderName: () => getConfiguredSenderName(),
     },
   };
 }

@@ -70,6 +70,7 @@ export interface PluginAdminInfo {
     required?: boolean;
     default?: string | number | boolean;
     options?: Array<{ value: string; label: string }>;
+    componentHint?: string;
   }>;
   errors: string[];
 }
@@ -127,5 +128,19 @@ export function setPluginEnabled(id: string, enabled: boolean) {
   return adminRequest<{ ok: true }>(
     `/api/admin/plugins/${encodeURIComponent(id)}/${action}`,
     { method: 'POST' },
+  );
+}
+
+// Calls a plugin-contributed admin route (mounted at
+// /api/admin/plugins/<id>/ext/<subpath>, gated by admin auth).
+export function callPluginAdminRoute<T = unknown>(
+  pluginId: string,
+  subpath: string,
+  init?: RequestInit,
+) {
+  const clean = subpath.startsWith('/') ? subpath.slice(1) : subpath;
+  return adminRequest<T>(
+    `/api/admin/plugins/${encodeURIComponent(pluginId)}/ext/${clean}`,
+    init,
   );
 }

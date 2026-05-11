@@ -356,6 +356,10 @@ export interface FormSchema {
   // Multi-category support. A dialog can belong to several categories.
   categories?: string[];
   isActive?: boolean;
+  // `unlisted=true` blendet den Dialog in der öffentlichen Übersicht aus,
+  // lässt ihn aber per Direkt-Link (z. B. iframe-Embed) erreichbar. Nur
+  // wirksam, solange `isActive !== false`.
+  unlisted?: boolean;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;

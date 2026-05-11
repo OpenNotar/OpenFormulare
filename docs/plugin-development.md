@@ -1,6 +1,8 @@
 # OpenFormulare – Plugin-Entwicklung
 
-> Stand: Mai 2026 · Plugin-API v1 · Lizenz: MIT
+> Stand: Mai 2026 · Plugin-API v1 (mit `adminRoutes`, `core.sendEmail`,
+> Setting-Typ `json` + `componentHint`, `PluginFieldType.formatValue`) ·
+> Lizenz: MIT
 
 OpenFormulare ist als Open-Source-Plattform für digitale Formulare und
 Dialoge konzipiert. Ab Version 1.x ist das Tool über ein offizielles
@@ -240,8 +242,35 @@ String gespeichert.
 ```
 
 Unterstützte `type`-Werte: `string`, `number`, `boolean`, `password`,
-`url`, `select`. Bei `select` muss zusätzlich `options: [{ value, label }]`
-gesetzt sein.
+`url`, `select`, `json`. Bei `select` muss zusätzlich
+`options: [{ value, label }]` gesetzt sein.
+
+#### Strukturierte Settings (`type: "json"` + `componentHint`)
+
+Für komplexe Konfigurationen (Listen, Maps, Wochenpläne) gibt es den
+Typ `json`. Der gespeicherte Wert ist ein JSON-String, den die Admin-UI
+optional über einen spezialisierten Editor rendert – gesteuert via
+`componentHint`:
+
+```json
+{
+  "key": "schedule",
+  "label": "Wochenplan",
+  "type": "json",
+  "componentHint": "weekly-schedule",
+  "description": "Definieren Sie pro Wochentag Terminarten mit Dauer und Pufferzeit."
+}
+```
+
+Wird `componentHint` weggelassen, fällt die Admin-UI auf eine
+JSON-Textarea zurück. Aktuell unterstützte Hints:
+
+| Hint              | UI-Komponente                                                |
+|-------------------|--------------------------------------------------------------|
+| `weekly-schedule` | Tag-für-Tag-Editor mit beliebig vielen Zeitblöcken pro Tag (Bezeichnung, Von/Bis, Dauer, Pufferzeit, Kalender-ID). |
+
+Weitere Hints können ohne Plugin-API-Bruch ergänzt werden; das Plugin
+muss nur den Setting-Wert als JSON-String entgegennehmen können.
 
 ### Lesen und Schreiben
 
@@ -266,7 +295,9 @@ nötig.
 
 ## 6. Eigene Routen
 
-Plugins können zusätzliche HTTP-Endpoints definieren:
+Plugins können zwei Arten von HTTP-Routen registrieren:
+
+### 6.1 Öffentliche Routen (`routes`)
 
 ```typescript
 const plugin: PluginModule = {
@@ -283,7 +314,85 @@ const plugin: PluginModule = {
 
 Diese Routes werden unter `/api/plugins/<plugin-id>/...` gemountet
 (nur wenn das Plugin aktiv ist). Die Authentifizierung übernimmt das
-Plugin selbst – z. B. mit einem geteilten Geheimnis aus den Settings.
+Plugin selbst – z. B. mit einem geteilten Geheimnis aus den Settings,
+einem `X-Api-Key`-Header oder einer Signatur.
+
+### 6.2 Admin-Routen (`adminRoutes`)
+
+Für Operationen, die nur der Notar / Admin auslösen darf (z. B.
+Verbindungstests vor dem Speichern, Discovery, Maintenance-Aktionen),
+gibt es `adminRoutes`:
+
+```typescript
+const plugin: PluginModule = {
+  id: 'my-plugin',
+  adminRoutes: (router, ctx) => {
+    router.post('/probe', async (req, res) => {
+      // wird automatisch durch requireAdminAuth geschützt
+      const { token } = req.body as { token?: string };
+      res.json({ ok: !!token });
+    });
+  },
+};
+```
+
+Diese werden unter `/api/admin/plugins/<plugin-id>/ext/...` gemountet
+und automatisch durch die Admin-Auth-Middleware geschützt. Plugins
+müssen die Auth nicht selbst implementieren.
+
+Vom Frontend aus aufrufen:
+
+```typescript
+import { callPluginAdminRoute } from '../lib/pluginsApi';
+const response = await callPluginAdminRoute('my-plugin', 'probe', {
+  method: 'POST',
+  body: JSON.stringify({ token: 'abc' }),
+});
+```
+
+---
+
+## 6a. Core-Helper im `PluginContext`
+
+Damit Plugins keine eigenen SMTP-, DB- oder Auth-Setups bauen müssen,
+stellt der `ctx.core`-Namespace zentral konfigurierte Hilfsfunktionen
+zur Verfügung. Sie nutzen die App-Settings aus dem Admin-Bereich –
+Plugins erben deren Konfiguration automatisch.
+
+| Methode                                | Zweck                                                                                     |
+|----------------------------------------|-------------------------------------------------------------------------------------------|
+| `getDialog(id)`                        | Einzelnen Dialog laden (entschlüsselt).                                                   |
+| `listDialogs()`                        | Alle Dialoge auflisten.                                                                   |
+| `getDialogSchema(id)`                  | Schema eines Dialogs laden (für externe Validierung etc.).                                |
+| `sendEmail(opts)`                      | E-Mail über die zentralen SMTP-Settings versenden. Im SMTP-Debug-Modus nur Log.           |
+| `getSenderEmail()` / `getSenderName()` | Konfigurierte Absender-Identität (für `ORGANIZER` in iCal-Einladungen, `From`-Felder, …). |
+
+### Beispiel: E-Mail an Mandanten
+
+```typescript
+'dialog:submitted': async (event, ctx) => {
+  const to = event.submission.email as string | undefined;
+  if (!to) return;
+  await ctx.core.sendEmail({
+    to,
+    subject: 'Vielen Dank für Ihre Anfrage',
+    html: '<p>Wir melden uns in Kürze bei Ihnen.</p>',
+    attachments: [
+      { filename: 'info.pdf', content: pdfBuffer, contentType: 'application/pdf' },
+    ],
+  });
+}
+```
+
+`sendEmail` setzt `From` automatisch aus den Admin-Settings; im
+SMTP-Debug-Modus wird die Funktion erfolgreich aufgelöst, ohne dass
+eine echte Mail verschickt wird (eine Log-Zeile dokumentiert den
+Aufruf). So bleibt das Plugin testbar, ohne dass die SMTP-Konfiguration
+geprüft werden muss.
+
+> Weitere Core-Helper (z. B. `core.fetchExternal`, `core.signRequest`)
+> werden ergänzt, sobald sie von mehr als einem Plugin gebraucht
+> werden – ohne Plugin-API-Bruch.
 
 ---
 
@@ -312,111 +421,185 @@ HTML-Eingabe-Element (`text`, `number`, `textarea`, `select`,
 > Plugin-API-Version "Frontend Extensions via Module Federation" geplant.
 > v1 deckt einfache, validierte Eingabe-Komponenten ab.
 
+### Wert-Formatierung für PDF / DOCX / JSON (`formatValue`)
+
+Plugin-Felder speichern ihren Wert oft als JSON-Blob (z. B. ein
+Termin-Slot mit `start`, `end`, `calendarId`, `slotTypeLabel`). Damit
+PDF, DOCX und der JSON-Anhang nicht den rohen Payload zeigen, kann der
+Feld-Typ einen Server-seitigen Formatter mitliefern:
+
+```typescript
+fieldTypes: [
+  {
+    id: 'iban',
+    label: 'IBAN',
+    formatValue: (value, _field, _ctx) => {
+      if (typeof value !== 'string') return '';
+      // Gruppierung in 4er-Blöcken zur Lesbarkeit.
+      return value.replace(/(.{4})/g, '$1 ').trim();
+    },
+  },
+],
+```
+
+Signatur:
+
+```typescript
+(value: unknown, field: { id, label, type }, ctx: PluginContext) => string
+```
+
+- Wird sowohl im PDF- und DOCX-Renderer aufgerufen, als auch beim
+  Bauen des JSON-Anhangs (Submission → JSON).
+- Bekommt den eigenen `PluginContext` mit, sodass der Formatter
+  Settings lesen kann (z. B. Zeitzone, Locale) ohne globale Variablen.
+- Wenn `formatValue` `null`/`undefined`/Fehler liefert, fallen die
+  Renderer auf ihren Standard-Pfad (`String(value)`) zurück.
+- Der Formatter wird **nicht** ans Frontend serialisiert — interaktive
+  Darstellung im Wizard machen Sie in der React-Komponente (s. o.).
+
 ---
 
-## 8. Beispielplugin: WebDAV-Kalender
+## 8. Beispielplugin: Terminfindung (CalDAV)
 
-Das Plugin `webdav-calendar` ist Erstanbieter und im Repository
-mitgeliefert. Ab Version **1.1** demonstriert es zusätzlich, wie ein
-Plugin einen eigenen Feld-Typ mit komplexer UI ergänzt – inklusive
-Slot-Berechnung und Live-Abgleich gegen den CalDAV-Server.
+Das Plugin `terminfindung` (Plugin-Ordner `plugins/terminfindung/`,
+vormals `webdav-calendar`) ist Erstanbieter und im Repository
+mitgeliefert. Es demonstriert in einem geschlossenen Beispiel alle
+v1-API-Mechanismen: eigene Feld-Typen, öffentliche und Admin-Routen,
+strukturierte Settings (`type: json` mit `componentHint`), Hooks und
+die Core-Helper für Mail-Versand.
 
 ### Was das Plugin kann
 
 - Bindet einen **oder mehrere** CalDAV-Kalender an
-  (Standard-Kalender via Plugin-Settings, weitere als JSON-Liste).
-- Definiert konfigurierbare **Buchungs-Zeitfenster** (Wochentage,
-  Uhrzeiten, optional pro Kalender, optional auf Datumsbereiche
-  beschränkt).
-- Stellt den neuen Feld-Typ **Kalender / Termin** für den
-  Dialog-Editor bereit. Im Dialog zeigt das Feld einen
-  Tag-/Zeit-Picker im Stil der Nextcloud-Terminfindung.
-- Liest beim Picker-Aufruf via **CalDAV REPORT** alle bestehenden
-  Termine im Buchungs-Horizont und zieht sie als belegte Zeiten ab –
-  Doppelbuchungen werden ausgeschlossen.
-- Beim Absenden des Dialogs legt der `dialog:submitted`-Hook für
-  jeden gewählten Slot automatisch einen Termin im richtigen Kalender
-  an.
-- **Legacy-Pfad**: Dialoge ohne Kalender-Feld nutzen weiterhin die
-  beiden alten Felder `termin_datum` und `termin_uhrzeit`.
+  (Hauptkalender via Plugin-Settings, weitere als JSON-Liste).
+- Definiert einen **Wochenplan**: pro Wochentag beliebig viele
+  Terminarten (Bezeichnung, Von/Bis, Dauer, Pufferzeit, Kalender),
+  konfiguriert in der Admin-UI über einen tag-basierten Editor
+  (`componentHint: "weekly-schedule"`).
+- Stellt den neuen Feld-Typ **Termin / Kalender** für den
+  Dialog-Editor bereit. Mandanten sehen pro Terminart einen
+  Tag-/Zeit-Picker.
+- Liest via **CalDAV REPORT** mit `<C:expand>` alle bestehenden
+  Termine im Buchungs-Horizont (Master-Definitionen + RRULE-Serien
+  werden serverseitig expandiert) und zieht sie als belegte Zeiten
+  ab. Pufferzeiten werden bidirektional berücksichtigt.
+- Beim Absenden des Dialogs legt der `dialog:submitted`-Hook im
+  passenden Kalender einen Termin an. Falls eine Mandanten-E-Mail
+  vorliegt und SMTP konfiguriert ist, geht zusätzlich eine
+  **iCal-Einladung** (`METHOD:REQUEST`) per E-Mail an den Mandanten.
+- Bietet eine **Discovery-Funktion** in den Admin-Settings, mit der
+  Notar:innen die CalDAV-URL testen und einen Kalender aus dem
+  Server auswählen können – ohne ihre Credentials zu speichern.
 
 ### HTTP-Endpoints des Plugins
 
-| Endpoint                                            | Auth      | Funktion                                                |
-|-----------------------------------------------------|-----------|---------------------------------------------------------|
-| `GET /api/plugins/webdav-calendar/calendars`        | öffentlich| Liste verfügbarer Kalender (`id`, `label`).             |
-| `GET /api/plugins/webdav-calendar/slots?calendarId=…&from=…&to=…` | öffentlich| Freie Slots im Zeitraum, vom CalDAV-Server abgeglichen. |
-| `POST /api/plugins/webdav-calendar/test`            | öffentlich| Smoketest: legt morgen einen Test-Termin an.            |
+| Endpoint                                                              | Auth        | Funktion                                                |
+|-----------------------------------------------------------------------|-------------|---------------------------------------------------------|
+| `GET /api/plugins/terminfindung/slots?from=…&to=…`                    | öffentlich  | Freie Slots im Zeitraum, alle Terminarten kombiniert.   |
+| `POST /api/plugins/terminfindung/test`                                | öffentlich  | Smoketest: legt morgen einen Test-Termin an.            |
+| `POST /api/admin/plugins/terminfindung/ext/discover`                  | Admin-Auth  | Discovery: prüft Zugang, listet alle Kalender im Konto. |
+
+Die Discovery-Route nimmt `{ url, username, password }` im Body
+entgegen, persistiert nichts und liefert eine Liste aus
+`{ url, displayName, color? }`. Sie wird vom „Verbindung testen"-
+Button im Admin-UI aufgerufen.
 
 ### Plugin-Settings
 
-| Setting              | Typ      | Beschreibung                                                        |
-|----------------------|----------|---------------------------------------------------------------------|
-| `calendarUrl`        | URL      | Standard-Kalender (Pflicht).                                        |
-| `username`           | String   | CalDAV-User für den Standard-Kalender.                              |
-| `password`           | Password | App-Token / Passwort.                                               |
-| `calendars`          | JSON-Str | Optional: weitere Kalender als Array `[{id,label,url,username,password}]`. |
-| `timezone`           | String   | IANA-Zeitzone für Buchungsfenster (Default `Europe/Berlin`).        |
-| `bookingWindows`     | JSON-Str | Liste von Buchungsfenstern. Schema siehe unten.                     |
-| `bookingHorizonDays` | Zahl     | Wie weit in die Zukunft Buchungen erlaubt sind (Default 60).        |
-| `minLeadTimeMinutes` | Zahl     | Mindest-Vorlauf eines Slots ab "jetzt" (Default 60).                |
-| `dateFieldId` / `timeFieldId` | String | Legacy: Feld-IDs für Dialoge ohne Kalender-Feld.            |
-| `summaryTemplate`    | String   | Termin-Titel-Vorlage. Platzhalter: `{dialogTitle}`, `{dialogId}`, `{participantName}`. |
+| Setting              | Typ      | Beschreibung                                                                                  |
+|----------------------|----------|-----------------------------------------------------------------------------------------------|
+| `calendarUrl`        | URL      | Hauptkalender oder CalDAV-Discovery-Root (Pflicht).                                           |
+| `username`           | String   | CalDAV-User.                                                                                  |
+| `password`           | Password | App-spezifisches Passwort.                                                                    |
+| `calendars`          | JSON-Str | Optional: weitere Kalender als Array `[{id,label,url,username,password}]`.                    |
+| `timezone`           | String   | IANA-Zeitzone (Default `Europe/Berlin`). Wird auch als Fallback für TZID-lose iCal-Events benutzt. |
+| `schedule`           | JSON + `componentHint: weekly-schedule` | Wochenplan: pro Tag Liste von Terminarten. Schema siehe unten. |
+| `bookingHorizonDays` | Zahl     | Wie weit in die Zukunft Buchungen erlaubt sind (Default 60).                                  |
+| `minLeadTimeMinutes` | Zahl     | Mindest-Vorlauf eines Slots ab „jetzt" (Default 60).                                          |
+| `summaryTemplate`    | String   | Termin-Titel-Vorlage. Platzhalter: `{dialogTitle}`, `{dialogId}`, `{participantName}`, `{slotTypeLabel}`. |
 
-### `bookingWindows`-Schema
+### `schedule`-Schema
 
 ```json
-[
-  { "weekdays": [1, 2, 3, 4, 5], "from": "09:00", "to": "12:00", "slotMinutes": 30 },
-  { "weekdays": [1, 2, 3, 4, 5], "from": "14:00", "to": "17:00", "slotMinutes": 30 },
-  { "weekdays": [6], "from": "10:00", "to": "14:00", "slotMinutes": 60, "calendarId": "team" },
-  {
-    "weekdays": [3], "from": "08:00", "to": "10:00", "slotMinutes": 15,
-    "dateFrom": "2026-06-01", "dateTo": "2026-06-30"
-  }
-]
+{
+  "monday": [
+    {
+      "id": "abc12345",
+      "label": "Beurkundungen",
+      "from": "09:00",
+      "to": "12:00",
+      "durationMinutes": 30,
+      "bufferMinutes": 15,
+      "calendarId": "default"
+    },
+    {
+      "id": "def67890",
+      "label": "Beratungstermine",
+      "from": "15:00",
+      "to": "18:00",
+      "durationMinutes": 45,
+      "bufferMinutes": 10,
+      "calendarId": "team"
+    }
+  ],
+  "tuesday": [],
+  "wednesday": [],
+  "thursday": [],
+  "friday": [],
+  "saturday": [],
+  "sunday": []
+}
 ```
 
-- `weekdays`: 0 = Sonntag, 1 = Montag, …, 6 = Samstag
-- `from` / `to`: Wanduhrzeit in der konfigurierten `timezone`
-- `slotMinutes`: Granularität des Pickers (auch die Termin-Dauer beim
-  Anlegen des Events)
-- `calendarId` (optional): Fenster gilt nur für den Kalender mit
-  dieser ID
-- `dateFrom` / `dateTo` (optional): Fenster gilt nur in diesem
-  Datumsbereich (z. B. Sondersprechzeiten)
+- Tageskeys: `monday … sunday` (alle sieben Tage müssen vorhanden sein,
+  Wert kann ein leeres Array sein).
+- `durationMinutes`: Termin-Dauer und Slot-Granularität.
+- `bufferMinutes`: Pufferzeit, die vor und nach jedem geplanten Slot
+  frei sein muss. Wirkt nur gegenüber bereits belegten Terminen –
+  zwei freie Slots derselben Art berühren sich weiterhin.
+- `calendarId`: ID aus dem Hauptkalender (`default`) oder dem
+  `calendars`-Setting. Slots dieser Art werden gegen genau diesen
+  Kalender abgeglichen und dort angelegt.
 
-### Den Kalender-Picker in einem Dialog nutzen
+### Den Termin-Picker in einem Dialog nutzen
 
-1. Plugin in der Admin-UI aktivieren und Settings ausfüllen.
-2. Im Dialog-Editor neues Feld vom Typ **Kalender / Termin** anlegen.
-3. (Optional) Im Feld-JSON `calendarId` setzen, um einen anderen als
-   den Standard-Kalender zu verwenden.
-4. Veröffentlichen – der Endkunde sieht den Picker und wählt einen
-   freien Slot.
-5. Nach dem Absenden erstellt das Plugin im Hintergrund einen
-   CalDAV-Termin.
+1. Plugin in der Admin-UI aktivieren, Verbindung testen, Kalender
+   wählen, Wochenplan ausfüllen.
+2. Im Dialog-Editor neues Feld vom Typ **Termin / Kalender** anlegen.
+3. Veröffentlichen – der Mandant sieht im Dialog je nach Wochenplan
+   eine Auswahl von Terminarten, Tagen und Uhrzeiten.
+4. Nach dem Absenden:
+   - Termin landet im konfigurierten CalDAV-Kalender (`ORGANIZER` =
+     Notar, `ATTENDEE` = Mandant, falls E-Mail vorhanden).
+   - Mandant erhält eine iCal-Einladung per E-Mail
+     (`METHOD:REQUEST`), die er mit einem Klick in seinen eigenen
+     Kalender übernehmen kann.
 
 ### Test ohne Submission
 
 ```bash
-# Liste der Kalender
-curl http://localhost:3001/api/plugins/webdav-calendar/calendars
+# Freie Slots der nächsten N Tage (N = bookingHorizonDays)
+curl 'http://localhost:3001/api/plugins/terminfindung/slots'
 
-# Freie Slots der nächsten 14 Tage
-curl 'http://localhost:3001/api/plugins/webdav-calendar/slots?calendarId=default'
+# Slots in einem bestimmten Zeitraum
+curl 'http://localhost:3001/api/plugins/terminfindung/slots?from=2026-05-18T00:00:00Z&to=2026-05-19T00:00:00Z'
 
-# Test-Termin
-curl -X POST http://localhost:3001/api/plugins/webdav-calendar/test
+# Test-Termin im Standard-Kalender
+curl -X POST http://localhost:3001/api/plugins/terminfindung/test
 ```
+
+Für tieferes Debugging: `TERMINFINDUNG_DEBUG=1` als ENV setzen – das
+Plugin loggt dann die rohen CalDAV-Responses und die geparsten
+Busy-Intervalle ins Backend-Log.
 
 ### Erweitern auf andere Kalender-Anbieter
 
-Der CalDAV-Layer ist im Plugin gekapselt (`fetchBusy()`, `uploadEvent()`).
-Für andere Anbieter (Google Calendar API, Microsoft Graph, eigene
-HTTP-Schnittstellen) lassen sich diese beiden Funktionen in einem
-neuen Plugin oder einem Fork dieses Plugins ersetzen, ohne dass die
-Slot-Berechnungs- und Booking-Window-Logik angepasst werden muss.
+Der CalDAV-Layer ist im Plugin gekapselt (`fetchBusy()`, `uploadEvent()`,
+`discoverCalendars()`). Für andere Anbieter (Google Calendar API,
+Microsoft Graph, eigene HTTP-Schnittstellen) lassen sich diese
+Funktionen in einem neuen Plugin oder einem Fork ersetzen, ohne dass
+die Slot-Berechnung, der Wochenplan-Editor oder der Hook-Pfad
+angepasst werden müssen.
 
 ---
 
@@ -523,9 +706,18 @@ können.
 - Hook-Handler sollten **idempotent** sein – z. B. werden bei einem
   erneuten Start abhängige externe Aufrufe (Webhooks, CalDAV-Inserts)
   unter Umständen wiederholt.
-- Plugin-Routen unter `/api/plugins/<id>/...` haben **keine** vom
-  Kern erzwungene Authentifizierung. Plugins, die sensible Endpoints
-  bereitstellen, müssen das selbst tun.
+- Plugin-Routen unter `/api/plugins/<id>/...` (`routes`) haben
+  **keine** vom Kern erzwungene Authentifizierung. Plugins, die
+  sensible Endpoints bereitstellen, müssen das selbst tun.
+- Plugin-Routen unter `/api/admin/plugins/<id>/ext/...` (`adminRoutes`)
+  werden **automatisch** durch die Admin-Auth-Middleware geschützt.
+  Nutzen Sie diese, wenn ein Endpunkt nur vom Notar/Admin (nicht vom
+  Mandanten) ausgelöst werden soll.
+- Core-Helper (`ctx.core.sendEmail`, `getSenderEmail`, …) nutzen die
+  zentral konfigurierten App-Settings. Plugins, die diese aufrufen,
+  müssen darauf vorbereitet sein, dass SMTP im SMTP-Debug-Modus
+  läuft oder nicht konfiguriert ist – Fehler sauber loggen, nicht
+  crashen.
 
 ---
 

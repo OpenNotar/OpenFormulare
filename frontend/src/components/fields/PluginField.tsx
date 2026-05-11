@@ -51,7 +51,7 @@ export function PluginField({ field, prefix }: Props) {
   const fieldTypeStr = field.type as string;
   if (
     behavior === 'calendar' ||
-    fieldTypeStr === 'webdav-calendar' ||
+    fieldTypeStr === 'terminfindung' ||
     fieldTypeStr === 'calendar'
   ) {
     return <CalendarField field={field} prefix={prefix} />;

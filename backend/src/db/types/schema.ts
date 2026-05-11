@@ -253,6 +253,9 @@ export interface FormSchema {
   category?: string;
   categories?: string[];
   isActive?: boolean;
+  // Aus der öffentlichen Übersicht verstecken — Dialog bleibt aber per
+  // Direkt-Link erreichbar. Nur wirksam, solange `isActive !== false`.
+  unlisted?: boolean;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;

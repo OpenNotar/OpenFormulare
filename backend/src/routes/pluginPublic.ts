@@ -2,8 +2,8 @@
 //
 // Each enabled plugin that defines a `routes` function is mounted at
 // /api/plugins/<plugin-id>. This is also the natural place for plugins to
-// expose webhook callback URLs and read-only endpoints (e.g. the WebDAV
-// calendar plugin's `/api/plugins/webdav-calendar/sync` for manual triggers).
+// expose webhook callback URLs and read-only endpoints (e.g. the
+// Terminfindung-plugin's `/api/plugins/terminfindung/slots` endpoint).
 
 import { Router } from 'express';
 

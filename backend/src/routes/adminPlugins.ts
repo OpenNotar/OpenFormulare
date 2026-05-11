@@ -97,6 +97,25 @@ router.put('/:id/settings', (req, res) => {
       values[def.key] = String(num);
     } else if (def.type === 'boolean') {
       values[def.key] = raw ? 'true' : 'false';
+    } else if (def.type === 'json') {
+      let serialised: string;
+      if (typeof raw === 'string') {
+        try {
+          JSON.parse(raw);
+        } catch {
+          res.status(400).json({ error: `Setting "${def.key}" must be valid JSON` });
+          return;
+        }
+        serialised = raw;
+      } else {
+        try {
+          serialised = JSON.stringify(raw);
+        } catch {
+          res.status(400).json({ error: `Setting "${def.key}" could not be serialised to JSON` });
+          return;
+        }
+      }
+      values[def.key] = serialised;
     } else {
       const str = String(raw);
       if (def.pattern) {

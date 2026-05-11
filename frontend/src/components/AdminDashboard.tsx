@@ -9,6 +9,7 @@ import {
   listAdminDialogs,
   removeDialog,
   toggleDialogActive,
+  toggleDialogUnlisted,
   type DialogRecord,
 } from '../lib/dialogsApi';
 import type { FormSchema } from '../types/schema';
@@ -80,6 +81,17 @@ export function AdminDashboard() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Dialogstatus konnte nicht geändert werden.');
+    }
+  }
+
+  async function handleToggleUnlisted(dialog: DialogRecord) {
+    try {
+      const updated = await toggleDialogUnlisted(dialog.id);
+      setDialogs((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sichtbarkeit konnte nicht geändert werden.');
     }
   }
 
@@ -210,8 +222,18 @@ export function AdminDashboard() {
                 <span className="text-xs text-gray-500">
                   {dialog.isSystem ? 'Standard' : 'Eigen'}
                 </span>
-                <span className={`text-xs font-medium ${dialog.isActive === false ? 'text-amber-600' : 'text-green-600'}`}>
-                  {dialog.isActive === false ? 'Deaktiviert' : 'Aktiv'}
+                <span className={`text-xs font-medium ${
+                  dialog.isActive === false ? 'text-amber-600'
+                  : dialog.unlisted ? 'text-blue-600'
+                  : 'text-green-600'
+                }`} title={
+                  dialog.isActive === false ? 'Deaktiviert: nicht erreichbar'
+                  : dialog.unlisted ? 'Versteckt: nur per Direkt-Link erreichbar, nicht in der Übersicht'
+                  : 'Aktiv: in der öffentlichen Übersicht gelistet'
+                }>
+                  {dialog.isActive === false ? 'Deaktiviert'
+                   : dialog.unlisted ? 'Versteckt'
+                   : 'Aktiv'}
                 </span>
                 <div className="flex gap-2">
                   <Link
@@ -226,6 +248,17 @@ export function AdminDashboard() {
                   >
                     {dialog.isActive === false ? 'Aktivieren' : 'Deaktivieren'}
                   </button>
+                  {dialog.isActive !== false && (
+                    <button
+                      onClick={() => void handleToggleUnlisted(dialog)}
+                      title={dialog.unlisted
+                        ? 'In der öffentlichen Übersicht wieder anzeigen'
+                        : 'In der öffentlichen Übersicht verstecken (Direkt-Link bleibt aktiv)'}
+                      className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors"
+                    >
+                      {dialog.unlisted ? 'Anzeigen' : 'Verstecken'}
+                    </button>
+                  )}
                   <button
                     onClick={() => void handleDelete(dialog)}
                     className="text-xs font-medium text-red-500 border border-red-200 rounded px-3 py-2 hover:bg-red-50 transition-colors"

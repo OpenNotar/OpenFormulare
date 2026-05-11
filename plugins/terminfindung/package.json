@@ -1,8 +1,8 @@
 {
-  "name": "openformulare-plugin-webdav-calendar",
-  "version": "1.0.0",
+  "name": "openformulare-plugin-terminfindung",
+  "version": "2.0.0",
   "private": true,
-  "description": "WebDAV/CalDAV calendar integration plugin for OpenFormulare.",
+  "description": "Terminfindung-Plugin für OpenFormulare (CalDAV-basierte Online-Terminbuchung).",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json"

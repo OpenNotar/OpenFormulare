@@ -2,6 +2,8 @@ import nodemailer, { type SendMailOptions } from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import type { DiNoMapping } from './dinoMapper';
+import { humanizeSubmission } from './submissionHumanizer';
+import type { FormSchema } from '../db/types/schema';
 import {
   getEmailConfig,
   type AttachmentSelection,
@@ -45,6 +47,10 @@ interface EmailOptions {
   files: Express.Multer.File[];
   attachments: AttachmentSelection;
   config?: EmailConfig;
+  // Optional Form-Schema — wenn vorhanden, wird der JSON-Anhang mit
+  // menschenlesbaren Werten für Plugin-Felder angereichert (statt rohen
+  // JSON-Payloads für Slot-Werte etc.).
+  formSchema?: FormSchema;
 }
 
 interface TemplateContext {
@@ -82,6 +88,7 @@ export async function sendEmail({
   files,
   attachments,
   config,
+  formSchema,
 }: EmailOptions): Promise<void> {
   const cfg = config ?? getEmailConfig();
   const title = FORM_TITLES[formType] ?? formType;
@@ -102,11 +109,15 @@ export async function sendEmail({
     phone: (data.telefon as string | undefined) ?? '',
   };
 
+  // Menschenlesbare Sicht der Submission: Plugin-Feldwerte werden durch ihren
+  // Formatter-Output ersetzt (statt rohen JSON-Payloads im JSON-Anhang).
+  const humanizedData = formSchema ? humanizeSubmission(data, formSchema) : data;
+
   if (cfg.smtpDebug) {
     const dumpDir = path.resolve(__dirname, '../../../DebugDump', `${fileStamp}_${formType}`);
     fs.mkdirSync(dumpDir, { recursive: true });
 
-    fs.writeFileSync(path.join(dumpDir, 'form-data.json'), JSON.stringify(data, null, 2));
+    fs.writeFileSync(path.join(dumpDir, 'form-data.json'), JSON.stringify(humanizedData, null, 2));
     fs.writeFileSync(path.join(dumpDir, 'dino-mapping.json'), JSON.stringify(dinoMapping, null, 2));
     if (attachments.pdf) {
       fs.writeFileSync(path.join(dumpDir, `${formType}.pdf`), pdfBuffer);
@@ -151,7 +162,7 @@ export async function sendEmail({
   if (attachments.json) {
     attachmentList.push({
       filename: `${formType}-${fileStamp}.json`,
-      content: JSON.stringify(data, null, 2),
+      content: JSON.stringify(humanizedData, null, 2),
       contentType: 'application/json',
     });
   }
@@ -226,4 +237,56 @@ export async function sendConfirmation({ to, from, cfg, ctx }: ConfirmationOptio
     subject: renderTemplate(subjectTemplate, ctx),
     html: appendSignature(renderTemplate(bodyTemplate, ctx), cfg.htmlSignature),
   });
+}
+
+// Generische E-Mail-Versand-Funktion für Plugins und andere Core-Komponenten.
+// Nutzt die zentral konfigurierten SMTP-Settings; im SMTP-Debug-Modus wird
+// nichts versendet, sondern ein Hinweis ins Log geschrieben.
+export interface GenericMailOptions {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  attachments?: SendMailOptions['attachments'];
+  replyTo?: string;
+}
+
+export async function sendGenericMail(opts: GenericMailOptions): Promise<void> {
+  const cfg = getEmailConfig();
+  if (!cfg.fromEmail) {
+    throw new Error('Kein Absender konfiguriert (Admin → E-Mail → Absender).');
+  }
+  if (cfg.smtpDebug) {
+    console.log(
+      `[SMTP_DEBUG] (sendGenericMail) Mail an ${opts.to} – Betreff: ${opts.subject}` +
+        (opts.attachments?.length ? ` – Anhänge: ${opts.attachments.length}` : ''),
+    );
+    return;
+  }
+  if (!cfg.smtpHost) {
+    throw new Error('Kein SMTP-Host konfiguriert (Admin → E-Mail).');
+  }
+  const transporter = createTransporter(cfg);
+  const from = `"${cfg.fromName || 'OpenFormulare'}" <${cfg.fromEmail}>`;
+  await transporter.sendMail({
+    from,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    attachments: opts.attachments,
+    replyTo: opts.replyTo,
+  });
+}
+
+// Liefert die konfigurierte Absender-Adresse (oder null), z. B. damit Plugins
+// einen sinnvollen ORGANIZER für iCal-Einladungen setzen können.
+export function getConfiguredSenderEmail(): string | null {
+  const cfg = getEmailConfig();
+  return cfg.fromEmail || null;
+}
+
+export function getConfiguredSenderName(): string | null {
+  const cfg = getEmailConfig();
+  return cfg.fromName || null;
 }

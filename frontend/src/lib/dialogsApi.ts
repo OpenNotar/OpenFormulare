@@ -100,6 +100,13 @@ export function toggleDialogActive(id: string) {
   });
 }
 
+export function toggleDialogUnlisted(id: string) {
+  return request<DialogRecord>(`/api/dialogs/${id}/toggle-unlisted`, {
+    method: 'PATCH',
+    headers: getAdminHeaders(),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Locking
 // ---------------------------------------------------------------------------

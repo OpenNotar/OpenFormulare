@@ -7,6 +7,7 @@ import adminAuthRouter from './routes/adminAuth';
 import adminDialogsRouter from './routes/adminDialogs';
 import adminPluginsRouter from './routes/adminPlugins';
 import { buildPluginPublicRouter } from './routes/pluginPublic';
+import { buildPluginAdminExtRouter } from './routes/pluginAdminExt';
 import { getDatabase } from './db/database';
 import dialogsRouter from './routes/dialogs';
 import submitRouter from './routes/submit';
@@ -78,6 +79,10 @@ loadPlugins()
   .catch((err) => console.warn('[plugins] loadPlugins failed:', err))
   .finally(() => {
     app.use('/api/plugins', buildPluginPublicRouter());
+    // Plugin-contributed admin routes are mounted *after* adminPluginsRouter
+    // (which owns /api/admin/plugins/:id/settings, /enable, /disable). Sub-
+    // paths under /:id/ext therefore don't collide.
+    app.use('/api/admin/plugins', buildPluginAdminExtRouter());
 
     app.listen(port, () => {
       console.log(

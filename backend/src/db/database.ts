@@ -345,3 +345,31 @@ export function toggleDialogActive(id: string): DialogRecord | null {
 
   return getDialog(id);
 }
+
+// Toggle für das im verschlüsselten Payload getragene `unlisted`-Flag.
+// Schreibt nur die Payload-Spalten neu — kein saveVersion()-Aufruf, weil
+// dieser Schalter ein reines Sichtbarkeits-Setting ist und die Versionsliste
+// sonst mit jedem Klick wüchse.
+export function toggleDialogUnlisted(id: string): DialogRecord | null {
+  const existing = getDialog(id);
+  if (!existing) {
+    return null;
+  }
+  const next: FormSchema = { ...existing, unlisted: !existing.unlisted };
+  const encrypted = encryptSchema(next);
+  getDatabase()
+    .prepare(`
+      UPDATE dialogs
+      SET payload_ciphertext = ?, payload_iv = ?, payload_tag = ?, payload_version = ?, updated_at = ?
+      WHERE id = ?
+    `)
+    .run(
+      encrypted.ciphertext,
+      encrypted.iv,
+      encrypted.tag,
+      encrypted.version,
+      new Date().toISOString(),
+      id,
+    );
+  return getDialog(id);
+}

@@ -7,6 +7,7 @@ import {
   getDialog,
   listDialogs,
   toggleDialogActive,
+  toggleDialogUnlisted,
   updateDialog,
 } from '../db/database';
 import * as demoStore from '../db/demoStore';
@@ -21,6 +22,7 @@ const dialogSchema = z.object({
   category: z.string().optional().default('Allgemein'),
   categories: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
+  unlisted: z.boolean().optional(),
   steps: z.array(
     z.object({
       id: z.string().min(1),
@@ -34,7 +36,10 @@ router.get('/', (req, res) => {
   const all = isDemoMode()
     ? demoStore.listDialogs(req.demoSessionId!)
     : listDialogs();
-  res.json(all.filter((dialog) => dialog.isActive !== false));
+  // Öffentliche Übersicht: nur aktive UND nicht-versteckte Dialoge. Versteckte
+  // Dialoge bleiben über GET /:id (Direkt-Link) erreichbar — sie sollen sich
+  // wie „unlisted" verhalten, nicht wie „deaktiviert".
+  res.json(all.filter((dialog) => dialog.isActive !== false && !dialog.unlisted));
 });
 
 router.get('/:id', (req, res) => {
@@ -110,6 +115,18 @@ router.patch('/:id/toggle-active', (req, res) => {
   const dialog = isDemoMode()
     ? demoStore.toggleDialogActive(req.demoSessionId!, req.params.id)
     : toggleDialogActive(req.params.id);
+  if (!dialog) {
+    res.status(404).json({ error: 'Dialog nicht gefunden' });
+    return;
+  }
+
+  res.json(dialog);
+});
+
+router.patch('/:id/toggle-unlisted', (req, res) => {
+  const dialog = isDemoMode()
+    ? demoStore.toggleDialogUnlisted(req.demoSessionId!, req.params.id)
+    : toggleDialogUnlisted(req.params.id);
   if (!dialog) {
     res.status(404).json({ error: 'Dialog nicht gefunden' });
     return;
