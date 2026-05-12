@@ -24,8 +24,13 @@ ENV PUPPETEER_SKIP_DOWNLOAD=1 \
     # noch nicht kopierte Plugin-Sourcen zu bauen).
     OPENFORMULARE_SKIP_PLUGIN_BUILD=1
 
-# Install dependencies first (cache-friendly).
+# Install dependencies first (cache-friendly). `tools/` muss vor `npm ci`
+# rein, weil der Root-postinstall-Hook `node tools/build-plugins.mjs`
+# aufruft — auch wenn er via OPENFORMULARE_SKIP_PLUGIN_BUILD=1 sofort
+# zurückkehrt, muss die Datei zumindest existieren, damit Node sie laden
+# kann. tools/ ändert sich selten und sprengt den Build-Cache kaum.
 COPY package*.json ./
+COPY tools tools
 COPY frontend/package*.json frontend/
 COPY backend/package*.json backend/
 RUN npm ci --workspaces --include-workspace-root
