@@ -17,7 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_DOWNLOAD=1
+ENV PUPPETEER_SKIP_DOWNLOAD=1 \
+    # Multi-Stage-Build kompiliert die Plugins weiter unten in einem
+    # separaten Schritt — deshalb hier den postinstall-Hook im Root-
+    # package.json überspringen (sonst würde er an dieser Stelle versuchen,
+    # noch nicht kopierte Plugin-Sourcen zu bauen).
+    OPENFORMULARE_SKIP_PLUGIN_BUILD=1
 
 # Install dependencies first (cache-friendly).
 COPY package*.json ./

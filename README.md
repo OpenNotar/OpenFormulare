@@ -133,7 +133,10 @@ Für lokale Entwicklung:
 git clone <repo-url>
 cd openformulare
 
-# Node-Abhängigkeiten installieren (Frontend + Backend)
+# Node-Abhängigkeiten installieren (Frontend + Backend). Der postinstall-Hook
+# baut anschließend automatisch alle Plugins unter plugins/ — wer das nicht
+# möchte (z. B. in CI), kann den Build mit `OPENFORMULARE_SKIP_PLUGIN_BUILD=1`
+# überspringen und später manuell mit `npm run build:plugins` nachholen.
 npm install
 
 # .env-Dateien anlegen und an die eigene Umgebung anpassen
@@ -152,6 +155,11 @@ cd ..
 
 `npm run migrate` muss nur beim ersten Setup und nach Datenbank-Schema-
 Änderungen erneut ausgeführt werden.
+
+Wenn Sie ein Plugin aktiv weiterentwickeln und nur dieses neu bauen
+möchten, reicht `cd plugins/<plugin-id> && npm run build`. Ein
+`npm run build:plugins` im Root baut alle Plugins auf einmal (überspringt
+automatisch solche, deren `dist/` aktueller ist als `src/`).
 
 ---
 
@@ -277,10 +285,13 @@ Updates: neuen Build hochladen, `systemctl restart openformulare.service`.
 ```
 openformulare/
 ├── frontend/   React 18 + Vite + Tailwind CSS
-└── backend/    Express + SQLite (verschlüsselt) + Puppeteer + Nodemailer
+├── backend/    Express + SQLite (verschlüsselt) + Puppeteer + Nodemailer
+└── plugins/    Eigenständige Erweiterungen (Hooks, Routen, Feld-Typen)
 ```
 
 **npm Workspaces** — ein `npm install` im Root installiert beide Pakete.
+Der `postinstall`-Hook baut anschließend automatisch alle Plugins unter
+`plugins/`.
 
 Persistente Daten liegen in einer **AES-256-GCM-verschlüsselten SQLite-Datei**.
 Migrationen werden mit [yoyo-migrations](https://ollycope.com/software/yoyo)
@@ -336,6 +347,8 @@ generischer `FormWizard` rendert alle Dialoge.
 | `person`, `natural-person`, `legal-person` | Verweis auf zentrale Personen-Vorlagen                                                                      |
 | `calculation`                              | Aus anderen Feldern berechneter Wert                                                                        |
 | `embed`                                    | Inlining eines anderen Dialogs                                                                              |
+| `stars`, `scale`, `yesno`                  | Bewertungs-Felder (Sterne, Skala, Ja/Nein) — z. B. für Mandanten-Feedback nach der Beurkundung              |
+| _Plugin-Felder_                            | Zusätzliche Feld-Typen, die aktive Plugins registrieren (z. B. **Termin / Kalender** vom Terminfindung-Plugin) |
 
 Alle Felder unterstützen **Sichtbarkeitsbedingungen** (`condition`) mit den
 Operatoren `eq`, `neq`, `in`, `lt`, `gt`, `lte`, `gte`, `set`, `unset`,
@@ -516,6 +529,53 @@ mit aufgenommen.
 
 ---
 
+## Plugins
+
+OpenFormulare ist ab Version 1.x über ein offizielles Plugin-System
+erweiterbar — ohne den Kern verändern zu müssen. Plugins können Hooks
+für Submission- und Bewertungs-Events anbieten, eigene HTTP-Routen
+(öffentlich oder Admin-auth-geschützt), eigene Feld-Typen für den
+Dialog-Editor und strukturierte Einstellungs-Schemata, die im
+Admin-Bereich automatisch zu Formularen werden.
+
+Plugins liegen unter `plugins/<plugin-id>/` als eigenständige
+npm-Pakete und werden beim Backend-Start eingelesen. Beim ersten
+`npm install` im Repo-Root werden sie automatisch gebaut
+(`postinstall`-Hook); ein expliziter Re-Build aller Plugins geht über
+`npm run build:plugins`.
+
+**Mitgeliefertes Beispiel-Plugin: `terminfindung`** — eine CalDAV-basierte
+Online-Terminbuchung:
+
+- Pro Wochentag mehrere Terminarten (Bezeichnung, Dauer, Pufferzeit,
+  Zielkalender) — konfigurierbar über einen tag-basierten Editor in
+  den Plugin-Einstellungen
+- Mandanten sehen pro Terminart einen Tag-/Zeit-Picker, der gegen den
+  konfigurierten CalDAV-Server abgleicht. Bereits belegte Termine
+  (auch wiederkehrende Serien) und Pufferzeiten werden automatisch
+  herausgerechnet
+- Beim Absenden des Dialogs legt das Plugin den Termin im passenden
+  Kalender an und verschickt — falls der Mandant eine E-Mail-Adresse
+  hinterlegt hat — eine iCal-Einladung (`METHOD:REQUEST`) per E-Mail
+- Discovery-Funktion im Admin-Bereich: CalDAV-URL eingeben → Plugin
+  testet Zugang und listet alle Kalender des Kontos zur Auswahl
+
+Sicherheits-Aspekte:
+
+- Plugins laufen **in-process** mit voller Backend-Berechtigung. Nur
+  geprüfte Plugins aktivieren.
+- Plugin-Einstellungen vom Typ `password` werden **AES-256-GCM-
+  verschlüsselt** persistiert (gleicher Schlüssel wie die Dialog-
+  Verschlüsselung).
+- Plugin-Routen unter `/api/admin/plugins/<id>/ext/...` sind
+  automatisch durch die Admin-Auth-Middleware geschützt. Öffentliche
+  Routen unter `/api/plugins/<id>/...` müssen ihre Auth selbst
+  implementieren.
+
+Detaillierte Entwickler-Doku: [`docs/plugin-development.md`](docs/plugin-development.md).
+
+---
+
 ## iframe-Einbindung
 
 ```html
@@ -541,19 +601,30 @@ dieselbe Instanz mehrere Kanzleien bedient:
 
 Erreichbar unter `/admin` (Login erforderlich; im Demo-Modus ohne Login).
 
-| Bereich                           | Inhalt                                                                            |
-| --------------------------------- | --------------------------------------------------------------------------------- |
-| Übersicht                         | Alle Dialoge mit Status (aktiv / inaktiv), Versionierung                          |
-| Dialog-Editor                     | Schritte und Felder grafisch bearbeiten, Bedingungen, Optionen, Personen-Vorlagen |
-| Einstellungen → Branding          | Notar-Name, Browser-Tab-Vorlage, Farben, Logo, Favicon                            |
-| Einstellungen → Kontakt & Termin  | Globale Felder des Kontakt-Schritts                                               |
-| Einstellungen → Personen-Vorlagen | Globale Vorlagen für natürliche / juristische Personen                            |
-| Einstellungen → Versand           | DiNo / E-Mail aktivieren, Anhang-Auswahl (PDF / DOCX / JSON / DiNo-JSON)          |
-| Einstellungen → E-Mail            | SMTP-Server, Absender, Notar-E-Mail, HTML-Signatur, Mandanten-Mail-Vorlage        |
-| Einstellungen → DiNo              | API-Key, TTL für ungelesene Einreichungen                                         |
+| Bereich                           | Inhalt                                                                                                                |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Übersicht                         | Alle Dialoge mit Status (**aktiv** / **versteckt** / **deaktiviert**), Versionierung                                  |
+| Dialog-Editor                     | Schritte und Felder grafisch bearbeiten, Bedingungen, Optionen, Personen-Vorlagen, Plugin-Feld-Typen                  |
+| Plugins                           | Installierte Plugins aktivieren/deaktivieren, Plugin-Einstellungen verwalten, Verbindungstests starten                |
+| Einstellungen → Branding          | Notar-Name, Browser-Tab-Vorlage, Farben, Logo, Favicon                                                                |
+| Einstellungen → Kontakt & Termin  | Globale Felder des Kontakt-Schritts                                                                                   |
+| Einstellungen → Personen-Vorlagen | Globale Vorlagen für natürliche / juristische Personen                                                                |
+| Einstellungen → Versand           | DiNo / E-Mail aktivieren, Anhang-Auswahl (PDF / DOCX / JSON / DiNo-JSON)                                              |
+| Einstellungen → E-Mail            | SMTP-Server, Absender, Notar-E-Mail, HTML-Signatur, Mandanten-Mail-Vorlage                                            |
+| Einstellungen → DiNo              | API-Key, TTL für ungelesene Einreichungen                                                                             |
 
-Sessions laufen nach 12 Stunden ab. SMTP-Passwort und DiNo-API-Key werden
-beim Lesen aus der Admin-API maskiert (`••••••••`).
+**Dialog-Sichtbarkeit** ist dreistufig:
+
+- **Aktiv** — in der öffentlichen Übersicht für Mandanten gelistet, per
+  Direkt-Link erreichbar.
+- **Versteckt** — NICHT in der Übersicht, aber per Direkt-Link bzw.
+  iframe-Embed erreichbar. Praktisch für gezielt verteilte Dialoge
+  (individuelle Verfahren, Pilot-Formulare).
+- **Deaktiviert** — komplett aus.
+
+Sessions laufen nach 12 Stunden ab. SMTP-Passwort, DiNo-API-Key und
+Plugin-`password`-Settings werden beim Lesen aus der Admin-API maskiert
+(`••••••••`) und in der DB AES-256-GCM-verschlüsselt persistiert.
 
 ### Demo-Modus
 
@@ -612,40 +683,63 @@ Stunden (Standard: 72) werden sie beim nächsten Pull automatisch bereinigt.
 
 ### Admin (Bearer-Token erforderlich)
 
-| Method      | Pfad                                   | Beschreibung                                |
-| ----------- | -------------------------------------- | ------------------------------------------- |
-| `POST`      | `/api/admin/auth/login`                | Anmelden, Token erhalten                    |
-| `GET`       | `/api/admin/auth/verify`               | Token prüfen                                |
-| `GET`       | `/api/admin/dialogs`                   | Alle Dialoge                                |
-| `GET`       | `/api/admin/dialogs/:id`               | Einzelnen Dialog laden                      |
-| `POST`      | `/api/admin/dialogs`                   | Neuen Dialog anlegen                        |
-| `PUT`       | `/api/admin/dialogs/:id`               | Dialog aktualisieren                        |
-| `PATCH`     | `/api/admin/dialogs/:id/active`        | Aktiv-Status umschalten                     |
-| `DELETE`    | `/api/admin/dialogs/:id`               | Dialog löschen                              |
-| `GET`/`PUT` | `/api/admin/settings/branding`         | Branding                                    |
-| `GET`/`PUT` | `/api/admin/settings/kontakt-step`     | Kontakt-Schritt                             |
-| `GET`/`PUT` | `/api/admin/settings/person-templates` | Personen-Vorlagen                           |
-| `GET`/`PUT` | `/api/admin/settings/dispatch`         | Versand-Optionen                            |
-| `GET`/`PUT` | `/api/admin/settings/email`            | SMTP, Absender, Signatur, Mandanten-Vorlage |
-| `GET`/`PUT` | `/api/admin/settings/dino`             | DiNo-API-Key, TTL                           |
-| `GET`       | `/api/admin/settings/runtime`          | Aktive Übermittlungswege                    |
+| Method      | Pfad                                                | Beschreibung                                                          |
+| ----------- | --------------------------------------------------- | --------------------------------------------------------------------- |
+| `POST`      | `/api/admin/auth/login`                             | Anmelden, Token erhalten                                              |
+| `GET`       | `/api/admin/auth/verify`                            | Token prüfen                                                          |
+| `GET`       | `/api/admin/dialogs`                                | Alle Dialoge                                                          |
+| `GET`       | `/api/admin/dialogs/:id`                            | Einzelnen Dialog laden                                                |
+| `POST`      | `/api/dialogs`                                      | Neuen Dialog anlegen (Admin-Auth-Header erforderlich)                 |
+| `PUT`       | `/api/dialogs/:id`                                  | Dialog aktualisieren                                                  |
+| `PATCH`     | `/api/dialogs/:id/toggle-active`                    | Aktiv-Status umschalten                                               |
+| `PATCH`     | `/api/dialogs/:id/toggle-unlisted`                  | „Versteckt"-Status umschalten (nur per Direkt-Link erreichbar)        |
+| `DELETE`    | `/api/dialogs/:id`                                  | Dialog löschen                                                        |
+| `GET`/`PUT` | `/api/admin/settings/branding`                      | Branding                                                              |
+| `GET`/`PUT` | `/api/admin/settings/kontakt-step`                  | Kontakt-Schritt                                                       |
+| `GET`/`PUT` | `/api/admin/settings/person-templates`              | Personen-Vorlagen                                                     |
+| `GET`/`PUT` | `/api/admin/settings/dispatch`                      | Versand-Optionen                                                      |
+| `GET`/`PUT` | `/api/admin/settings/email`                         | SMTP, Absender, Signatur, Mandanten-Vorlage                           |
+| `GET`/`PUT` | `/api/admin/settings/dino`                          | DiNo-API-Key, TTL                                                     |
+| `GET`       | `/api/admin/settings/runtime`                       | Aktive Übermittlungswege                                              |
+| `GET`       | `/api/admin/plugins`                                | Installierte Plugins inkl. Status, Schema und Fehlern                 |
+| `POST`      | `/api/admin/plugins/:id/enable` / `/disable`        | Plugin aktivieren / deaktivieren                                      |
+| `GET`/`PUT` | `/api/admin/plugins/:id/settings`                   | Plugin-Settings lesen / speichern (Passwörter automatisch maskiert)   |
+| `GET`       | `/api/admin/plugins/_field-types`                   | Vom aktiven Plugin registrierte Feld-Typen (für den Dialog-Editor)    |
+| `*`         | `/api/admin/plugins/:id/ext/...`                    | Plugin-eigene Admin-Routen (z. B. Verbindungstest), auth-geschützt    |
+
+### Plugins (öffentliche Routen)
+
+Wenn ein aktives Plugin eigene öffentliche Routen registriert, werden
+diese unter `/api/plugins/<plugin-id>/...` gemountet. Die Authentifizierung
+liegt beim Plugin selbst. Beispiel aus `terminfindung`:
+
+| Method | Pfad                                                            | Funktion                                              |
+| ------ | --------------------------------------------------------------- | ----------------------------------------------------- |
+| `GET`  | `/api/plugins/terminfindung/slots?from=…&to=…`                  | Freie Slots im konfigurierten Buchungs-Horizont       |
+| `POST` | `/api/plugins/terminfindung/test`                               | Smoketest: legt morgen einen Test-Termin an           |
 
 ---
 
 ## Datensicherheit
 
 - **Formularschemata und Einreichungen** werden **AES-256-GCM-verschlüsselt**
-  in der SQLite-Datenbank gespeichert (Schlüsselableitung via PBKDF2-SHA256).
+  in der SQLite-Datenbank gespeichert (Schlüsselableitung via `scrypt` aus
+  `DIALOG_DB_PASSWORD` + `DIALOG_DB_SALT`).
 - **Admin-Sessions** sind als HMAC-SHA256-signierte Tokens umgesetzt und
   laufen nach 12 h ab.
 - **DiNo-Endpoint** ist durch einen API-Key gesichert.
-- **SMTP-Passwort und DiNo-API-Key** werden in der Admin-API maskiert
+- **SMTP-Passwort, DiNo-API-Key und Plugin-Passwörter** werden mit demselben
+  AES-256-GCM-Schlüssel verschlüsselt persistiert (Token-Format
+  `enc:v1:<iv>:<tag>:<ciphertext>`). In der Admin-API werden sie maskiert
   ausgeliefert; ein leeres bzw. maskiertes Feld beim Speichern erhält den
-  bisherigen Wert.
+  bisherigen Wert. Plain-Text-Werte aus früheren Versionen funktionieren
+  weiter und werden beim nächsten Save automatisch verschlüsselt.
 - **Speicherbare Snapshots** (Form-Wizard „Speichern“-Funktion) sind
   password-protected (AES-256-GCM mit PBKDF2-SHA256, 200 000 Iterationen).
 - Im Docker-Image **keine** eingebrannten Secrets. Generierte Secrets liegen
   unter `/data/.secrets/` mit Permissions `600`.
+- **Plugins** laufen mit voller Backend-Berechtigung — entsprechend sollten
+  Operator:innen nur geprüfte Plugins aktivieren.
 
 ---
 

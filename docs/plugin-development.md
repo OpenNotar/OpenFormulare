@@ -144,10 +144,21 @@ export default plugin;
 
 1. Plugin-Verzeichnis nach `plugins/<plugin-id>/` kopieren oder per
    `git clone` einbinden.
-2. Plugin bauen: `cd plugins/<plugin-id> && npm install && npm run build`
+2. Plugin bauen. Drei Wege:
+   - **Repo-Root nach Klone**: ein einfaches `npm install` im Root
+     baut über den `postinstall`-Hook automatisch *alle* Plugins
+     unter `plugins/`. Für die meisten Workflows reicht das.
+   - **Alle Plugins manuell**: `npm run build:plugins` im Root.
+     Überspringt Plugins, deren `dist/` schon aktueller als `src/` ist.
+   - **Einzelnes Plugin**: `cd plugins/<plugin-id> && npm install && npm run build`.
 3. Backend neu starten. Beim Start scannt OpenFormulare das
    `plugins/`-Verzeichnis und legt für jedes gefundene Manifest einen
    Eintrag in der `plugins`-Tabelle an (Status: `enabled = false`).
+
+> Im Docker-Image ist der Postinstall-Hook über
+> `OPENFORMULARE_SKIP_PLUGIN_BUILD=1` deaktiviert — der Multi-Stage-Build
+> kompiliert die Plugins separat. In CI-Pipelines mit eigenem Plugin-Build
+> sollten Sie dieselbe Umgebungsvariable setzen.
 
 ### Aktivieren / Deaktivieren
 
