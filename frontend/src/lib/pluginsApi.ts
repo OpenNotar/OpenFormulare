@@ -49,6 +49,9 @@ export interface PluginFieldTypeInfo {
   // them via the generic PluginField component (or a dedicated component
   // for richer behaviours like 'calendar').
   behavior?: 'text' | 'number' | 'textarea' | 'select' | 'checkbox' | 'date' | 'calendar';
+  // Initialer Pflichtfeld-Default beim Anlegen im Dialog-Editor — der Notar
+  // kann ihn nachträglich umschalten.
+  defaultRequired?: boolean;
 }
 
 export interface PluginAdminInfo {

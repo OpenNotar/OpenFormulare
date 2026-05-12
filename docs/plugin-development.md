@@ -464,10 +464,18 @@ fieldTypes: [
     label: 'IBAN',
     description: 'Bankverbindung mit Validierung',
     behavior: 'text',
+    defaultRequired: true,        // Pflichtfeld-Default beim Anlegen
     defaultProps: { placeholder: 'DE…' },
   },
 ],
 ```
+
+`defaultRequired` ist die **Vorbelegung** für die Pflichtfeld-Checkbox
+im FieldConfigPanel: wenn `true`, ist das Feld direkt nach dem
+Hinzufügen ein Pflichtfeld. Der Notar kann das Häkchen jederzeit
+entfernen, wenn er das Feld optional führen will. Für Felder mit
+substantieller Bedeutung im Verfahrensablauf (z. B. Terminbuchung)
+ist `defaultRequired: true` empfehlenswert.
 
 Im Frontend werden Plugin-Feld-Typen über die generische
 `PluginField`-Komponente gerendert. Das `behavior`-Feld bestimmt das

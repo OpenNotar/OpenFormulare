@@ -202,7 +202,9 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
     const field = {
       id,
       label: info.label,
-      required: false,
+      // Default-Pflichtflag aus dem Plugin-Manifest; der Notar kann es im
+      // FieldConfigPanel umschalten.
+      required: info.defaultRequired === true,
       type: info.id,
       ...(info.defaultProps ?? {}),
     } as unknown as FormField;

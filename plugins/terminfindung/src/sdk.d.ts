@@ -102,6 +102,9 @@ declare module '@openformulare/plugin-sdk' {
     description?: string;
     defaultProps?: Record<string, unknown>;
     frontendEntry?: string;
+    // Initialer Pflichtfeld-Default beim Anlegen im Dialog-Editor.
+    // Notar kann ihn nachträglich umschalten (Field-Config-Panel).
+    defaultRequired?: boolean;
     // Backend-only formatter for PDF/DOCX/JSON rendering. Returns a
     // human-readable string for the raw submission value of this field type.
     formatValue?: (

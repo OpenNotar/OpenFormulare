@@ -6,7 +6,7 @@
 //
 // Wert: JSON-String mit { start, end, calendarId, slotTypeId, slotTypeLabel }.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 
 import type { FormField } from '../../types/schema';
@@ -64,6 +64,11 @@ export function CalendarField({ field, prefix }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // Wenn der Wizard das Pflichtfeld bei „Weiter" als ungültig markiert,
+  // springen wir das Slot-Grid an. Plugin-Felder haben keinen ref-bound
+  // <input>, sodass react-hook-forms shouldFocusError nichts focussieren
+  // kann — wir machen das manuell.
+  const slotGridRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     register(name, { required: field.required ? 'Bitte wählen Sie einen Termin aus.' : false });
@@ -130,6 +135,17 @@ export function CalendarField({ field, prefix }: Props) {
     const firstDay = days[0] ?? null;
     setSelectedDate(firstDay);
   }, [data, selectedTypeId, slotsByDay, days, selectedDate]);
+
+  // Wenn die Pflichtfeld-Validierung fehlschlägt (User hat „Weiter" geklickt,
+  // ohne einen Slot zu wählen), scrollen wir ins Slot-Grid und richten den
+  // Fokus dorthin aus. Triggert nur, wenn aktuell wirklich ein Fehler aktiv
+  // ist — kein dauerhaftes Scroll-Verhalten.
+  useEffect(() => {
+    if (!error) return;
+    const el = slotGridRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   function pickSlot(slot: Slot) {
     const payload: SelectedSlot = {
@@ -210,13 +226,33 @@ export function CalendarField({ field, prefix }: Props) {
                 ))}
               </div>
             </div>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2" ref={slotGridRef}>
               <p className="text-xs font-medium text-gray-700 mb-2">
                 Verfügbare Uhrzeiten {selectedDate ? `am ${formatDayLabel(selectedDate, data.timezone)}` : ''}
               </p>
+              {/* Proaktiver Inline-Hinweis: sobald ein Tag gewählt ist, aber
+                  noch kein konkreter Slot, weisen wir den Mandanten freundlich
+                  darauf hin, dass die Auswahl noch fehlt. Bei aktivem
+                  Pflichtfeld-Fehler wird der Hinweis als Fehler eingefärbt. */}
+              {selectedDate && !selected && (
+                <p
+                  className={`text-xs px-2 py-1.5 rounded mb-2 border ${
+                    error
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}
+                >
+                  Bitte wählen Sie noch eine Uhrzeit am{' '}
+                  {formatDayLabel(selectedDate, data.timezone)}.
+                </p>
+              )}
               <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 max-h-72 md:max-h-96 overflow-y-auto pr-1">
-                {(selectedDate ? slotsByDay.get(selectedDate) ?? [] : []).map((slot) => {
+                {(selectedDate ? slotsByDay.get(selectedDate) ?? [] : []).map((slot, idx) => {
                   const isSelected = selected?.start === slot.start && selected?.slotTypeId === slot.slotTypeId;
+                  // Dezenter Pulse-Ring auf dem ersten Slot des Tages, solange
+                  // noch keine Uhrzeit gewählt ist — visueller Wegweiser ohne
+                  // Auto-Pick.
+                  const isHinted = !selected && idx === 0;
                   return (
                     <button
                       key={`${slot.slotTypeId}-${slot.start}`}
@@ -225,6 +261,8 @@ export function CalendarField({ field, prefix }: Props) {
                       className={`px-2 py-1.5 rounded text-sm border transition-colors ${
                         isSelected
                           ? 'bg-primary text-white border-primary'
+                          : isHinted
+                          ? 'bg-white border-primary text-primary ring-2 ring-primary/30 animate-pulse'
                           : 'bg-white border-gray-200 hover:border-primary hover:text-primary'
                       }`}
                     >

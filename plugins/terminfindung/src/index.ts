@@ -1110,6 +1110,10 @@ const plugin: PluginModule = {
       label: 'Termin / Kalender',
       description:
         'Termin-Auswahl mit Live-Abgleich gegen einen CalDAV-Kalender. Mandanten sehen nur freie Slots; Pufferzeiten und belegte Termine werden automatisch berücksichtigt.',
+      // Ohne Uhrzeit ist die Buchung nicht sinnvoll — Default-Pflichtfeld.
+      // Im Editor kann der Notar das umschalten, wenn er den Termin als
+      // optional führen will.
+      defaultRequired: true,
       defaultProps: {
         label: 'Termin auswählen',
         slotsUrl: '/api/plugins/terminfindung/slots',

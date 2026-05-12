@@ -110,6 +110,11 @@ export interface PluginFieldType {
   // type appears in a schema. Empty string ⇒ no UI component (server-side
   // only field).
   frontendEntry?: string;
+  // Soll das Feld beim Anlegen im Dialog-Editor per Default als Pflichtfeld
+  // markiert sein? Der Notar kann es danach im FieldConfigPanel jederzeit
+  // umschalten — das ist nur die initiale Vorbelegung beim Klick auf
+  // „+ <feldname>" in der Plugin-Felder-Toolbar.
+  defaultRequired?: boolean;
   // Backend-only: formats the raw submission value for this field type into a
   // human-readable string. Called when rendering PDF / DOCX and when building
   // the human-readable JSON attachment, so plugin fields don't leak raw JSON
