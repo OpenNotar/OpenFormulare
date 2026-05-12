@@ -1234,24 +1234,41 @@ const plugin: PluginModule = {
     });
   },
 
-  adminRoutes: (router) => {
+  adminRoutes: (router, ctx) => {
     // POST /discover – Verbindung testen und verfügbare Kalender finden.
     // Body: { url, username, password }. Die Credentials werden nicht
     // persistiert; das Frontend reicht die noch-nicht-gespeicherten Form-Werte
     // ein, damit der Notar seine Konfiguration testen kann, bevor er sie
     // speichert. Geschützt durch requireAdminAuth (Mount-Pfad
     // /api/admin/plugins/terminfindung/ext).
+    //
+    // Wenn das Passwort-Feld leer oder maskiert (•••…) ankommt, greifen wir
+    // auf das bereits gespeicherte Passwort zurück — die Admin-UI maskiert
+    // beim Lesen, sonst müsste der Notar es vor jedem Test neu eingeben.
     router.post('/discover', async (req, res) => {
       const body = (req.body || {}) as { url?: string; username?: string; password?: string };
-      if (!body.url || !body.username || !body.password) {
-        res.status(400).json({ ok: false, error: 'URL, Benutzername und Passwort sind erforderlich.' });
+      if (!body.url || !body.username) {
+        res.status(400).json({ ok: false, error: 'URL und Benutzername sind erforderlich.' });
+        return;
+      }
+      const rawPassword = (body.password ?? '').trim();
+      const looksMasked = rawPassword === '' || /^[•●•●]+$/.test(rawPassword);
+      const password = looksMasked
+        ? ctx.settings.get<string>('password') ?? ''
+        : rawPassword;
+      if (!password) {
+        res.json({
+          ok: false,
+          error:
+            'Es ist noch kein Passwort gespeichert. Bitte tragen Sie ein Passwort ein, bevor Sie die Verbindung testen.',
+        });
         return;
       }
       try {
         const result = await discoverCalendars({
           url: body.url,
           username: body.username,
-          password: body.password,
+          password,
         });
         res.json(result);
       } catch (err) {

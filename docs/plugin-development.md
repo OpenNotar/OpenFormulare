@@ -1,8 +1,14 @@
 # OpenFormulare – Plugin-Entwicklung
 
-> Stand: Mai 2026 · Plugin-API v1 (mit `adminRoutes`, `core.sendEmail`,
-> Setting-Typ `json` + `componentHint`, `PluginFieldType.formatValue`) ·
-> Lizenz: MIT
+> Stand: Mai 2026 · Plugin-API **v1** · Lizenz: MIT
+>
+> v1 umfasst aktuell:
+> - **Hooks** für Submission- und Rating-Events
+> - **`routes`** (öffentlich) und **`adminRoutes`** (Admin-auth-geschützt)
+> - **`fieldTypes`** inklusive serverseitigem **`formatValue`** für PDF/DOCX/JSON
+> - **Settings-Schema** mit Typ `string`/`number`/`boolean`/`password`/`url`/`select`/`json` und optionalem **`componentHint`** für spezialisierte Admin-Editoren (z. B. `weekly-schedule`)
+> - **Verschlüsselte Secrets**: `password`-Settings werden automatisch mit AES-256-GCM (Schlüssel aus `DIALOG_DB_PASSWORD` + `DIALOG_DB_SALT`) verschlüsselt persistiert
+> - **`PluginContext.core`**-Helper: `getDialog`, `listDialogs`, `getDialogSchema`, `sendEmail`, `getSenderEmail`, `getSenderName`
 
 OpenFormulare ist als Open-Source-Plattform für digitale Formulare und
 Dialoge konzipiert. Ab Version 1.x ist das Tool über ein offizielles
@@ -284,6 +290,46 @@ ctx.settings.set('lastSync', new Date().toISOString());
 
 Werte werden immer als String gespeichert. Plugin-Autoren sind dafür
 verantwortlich, sie ggf. in Zahl/Bool zu casten.
+
+> **Passwort-Felder werden automatisch verschlüsselt.** Settings, die
+> im Manifest mit `"type": "password"` deklariert sind, landen
+> AES-256-GCM-verschlüsselt in der DB (`enc:v1:<iv>:<tag>:<ct>`-Format,
+> Key aus `DIALOG_DB_PASSWORD` + `DIALOG_DB_SALT`). Für das Plugin
+> bleibt die API transparent — `ctx.settings.get('apiToken')` liefert
+> wie gewohnt den Klartext zurück. Die Admin-UI maskiert Passwort-
+> Werte ans Frontend als `••••••••`; ein leeres oder maskiertes Feld
+> beim Speichern erhält den bisherigen Wert. Plain-Text-Werte aus
+> früheren Versionen funktionieren weiterhin und werden beim nächsten
+> Save automatisch verschlüsselt.
+
+#### Empfohlenes Pattern: „Test"-/„Discover"-Endpoints
+
+Plugins, die eine Connection-Test-Funktion anbieten (z. B. ein
+`/probe`- oder `/discover`-Endpoint in den `adminRoutes`), bekommen
+vom Frontend das Passwort als Maskierung (`••••••••`) übergeben,
+wenn der Notar das Form noch nicht neu ausgefüllt hat. Empfehlung:
+maskierte oder leere Eingaben durch den gespeicherten Wert ersetzen,
+damit der Test ohne Neueingabe funktioniert.
+
+```typescript
+router.post('/probe', async (req, res) => {
+  const { url, username, password } = req.body as {
+    url?: string; username?: string; password?: string;
+  };
+  if (!url || !username) {
+    res.status(400).json({ ok: false, error: 'URL und Benutzername sind erforderlich.' });
+    return;
+  }
+  const raw = (password ?? '').trim();
+  const looksMasked = raw === '' || /^[•●]+$/.test(raw);
+  const effective = looksMasked ? (ctx.settings.get<string>('password') ?? '') : raw;
+  if (!effective) {
+    res.json({ ok: false, error: 'Bitte zuerst ein Passwort speichern oder eintragen.' });
+    return;
+  }
+  // … mit `effective` weiterarbeiten …
+});
+```
 
 ### UI
 
@@ -681,6 +727,20 @@ npm run build
 # Backend neu starten – Plugin erscheint unter /admin/plugins
 ```
 
+> **Wichtig — keine `.js`-Files direkt in `src/` ablegen.** Sowohl der
+> OpenFormulare-Kern als auch jedes Plugin-Repo läuft Gefahr, dass ein
+> versehentlicher `tsc`-Lauf ohne `outDir` kompilierte `.js`-Files
+> **neben** den `.ts`-Quellen anlegt. Bei CommonJS-Modulauflösung
+> priorisiert Node die `.js` — neue Methoden in der `.ts` werfen dann
+> zur Laufzeit „X is not a function", obwohl der Quellcode korrekt
+> aussieht. Stellen Sie sicher, dass Ihr `tsconfig.json` `outDir`
+> nach `dist/` schreibt und `.gitignore` `src/**/*.js` ausschließt.
+> Wenn ein Plugin „komische" Fehler liefert, prüfen Sie immer zuerst:
+>
+> ```bash
+> find src -name "*.js" -type f
+> ```
+
 ### g) Plugin paketieren
 
 Für andere Operator:innen:
@@ -699,10 +759,19 @@ können.
 
 - Plugins laufen mit voller Backend-Berechtigung. Nur Plugins
   aktivieren, deren Code geprüft wurde.
-- Settings vom Typ `password` werden in Klartext in der DB gespeichert
-  (verschlüsselte Spalten sind eine geplante Erweiterung). Die DB
-  selbst ist standardmäßig durch das `SQLITE_PATH`-Volume und das
-  OS-Berechtigungsmodell geschützt.
+- Settings vom Typ `password` werden mit **AES-256-GCM** verschlüsselt
+  in der DB gespeichert. Schlüsselableitung via `scrypt` aus
+  `DIALOG_DB_PASSWORD` + `DIALOG_DB_SALT` (denselben Schlüssel nutzt
+  auch die Dialog-Payload-Verschlüsselung). Format des persistierten
+  Tokens: `enc:v1:<iv-b64>:<tag-b64>:<ciphertext-b64>`. Lese-Pfade
+  (z. B. `ctx.settings.get('password')`) entschlüsseln transparent.
+  Alte Plain-Text-Werte funktionieren weiterhin und werden bei der
+  nächsten Schreib-Operation automatisch in die verschlüsselte Form
+  überführt.
+- Die Admin-API liefert Passwort-Settings beim Lesen als `••••••••`
+  maskiert ans Frontend. Ein leeres oder maskiertes Feld beim
+  Speichern erhält den bisherigen Wert (verhindert versehentliches
+  Überschreiben mit Leer-String beim Editieren anderer Settings).
 - Hook-Handler sollten **idempotent** sein – z. B. werden bei einem
   erneuten Start abhängige externe Aufrufe (Webhooks, CalDAV-Inserts)
   unter Umständen wiederholt.
@@ -739,7 +808,7 @@ dokumentiert.
 
 - **Issues / Feature-Requests**: GitHub Issues im OpenFormulare-Repo
 - **Plugin-Beispiele**: `plugins/`-Verzeichnis, beginnend mit
-  `webdav-calendar`
+  `terminfindung` (siehe Abschnitt 8)
 - **Pull Requests** für die Plugin-API: bitte das Label
   `plugin-api` verwenden, damit das Core-Team frühzeitig drüberschaut.
 

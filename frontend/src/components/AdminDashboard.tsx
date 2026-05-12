@@ -198,7 +198,14 @@ export function AdminDashboard() {
           <p className="text-center text-gray-400 text-sm py-16">Dialoge werden geladen …</p>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[1.5fr_1fr_120px_120px_260px] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-200">
+            {/* Header und Reihen sind eigenständige Grids — die Spaltenbreiten
+                müssen daher FIX sein, damit alle Reihen exakt unter dem Header
+                ausgerichtet bleiben. Die Aktions-Spalte ist auf 380 px
+                bemessen, um vier Buttons (Bearbeiten, Aktivieren/Deaktivieren,
+                Verstecken/Anzeigen, Löschen) ohne Abschneiden aufzunehmen;
+                bei sehr schmalen Viewports brechen die Buttons innerhalb der
+                Spalte via `flex-wrap` in eine zweite Zeile um. */}
+            <div className="grid grid-cols-[1.5fr_1fr_90px_110px_380px] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-200">
               <span>Dialog</span>
               <span>Kategorie</span>
               <span>Typ</span>
@@ -208,7 +215,7 @@ export function AdminDashboard() {
             {filtered.map((dialog) => (
               <div
                 key={dialog.id}
-                className="grid grid-cols-[1.5fr_1fr_120px_120px_260px] gap-4 px-5 py-4 items-center border-b border-gray-100 last:border-b-0"
+                className="grid grid-cols-[1.5fr_1fr_90px_110px_380px] gap-4 px-5 py-4 items-center border-b border-gray-100 last:border-b-0"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800">{dialog.title}</p>
@@ -235,16 +242,16 @@ export function AdminDashboard() {
                    : dialog.unlisted ? 'Versteckt'
                    : 'Aktiv'}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Link
                     to={`/admin/dialogs/${dialog.id}/edit`}
-                    className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors"
+                    className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     Bearbeiten
                   </Link>
                   <button
                     onClick={() => void handleToggle(dialog)}
-                    className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors"
+                    className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     {dialog.isActive === false ? 'Aktivieren' : 'Deaktivieren'}
                   </button>
@@ -254,14 +261,14 @@ export function AdminDashboard() {
                       title={dialog.unlisted
                         ? 'In der öffentlichen Übersicht wieder anzeigen'
                         : 'In der öffentlichen Übersicht verstecken (Direkt-Link bleibt aktiv)'}
-                      className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors"
+                      className="text-xs font-medium text-gray-600 border border-gray-200 rounded px-3 py-2 hover:bg-gray-50 transition-colors whitespace-nowrap"
                     >
                       {dialog.unlisted ? 'Anzeigen' : 'Verstecken'}
                     </button>
                   )}
                   <button
                     onClick={() => void handleDelete(dialog)}
-                    className="text-xs font-medium text-red-500 border border-red-200 rounded px-3 py-2 hover:bg-red-50 transition-colors"
+                    className="text-xs font-medium text-red-500 border border-red-200 rounded px-3 py-2 hover:bg-red-50 transition-colors whitespace-nowrap"
                   >
                     Löschen
                   </button>

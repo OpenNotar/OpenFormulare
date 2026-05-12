@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAdminAuth } from '../auth/adminAuth';
+import { encryptString } from '../db/crypto';
 import {
   SETTING_KEYS,
   getSetting,
@@ -168,11 +169,12 @@ adminRouter.put('/email', (req, res) => {
   const current = getEmailConfig(sessionId(req));
   const incomingPass = typeof body.smtpPass === 'string' ? body.smtpPass : '';
   const keepPass = incomingPass === '' || incomingPass === SMTP_PASS_MASK;
+  const effectivePass = keepPass ? current.smtpPass : incomingPass;
   const next: EmailConfig = {
     smtpHost: body.smtpHost ?? current.smtpHost,
     smtpPort: typeof body.smtpPort === 'number' ? body.smtpPort : current.smtpPort,
     smtpUser: body.smtpUser ?? current.smtpUser,
-    smtpPass: keepPass ? current.smtpPass : incomingPass,
+    smtpPass: effectivePass,
     smtpDebug: typeof body.smtpDebug === 'boolean' ? body.smtpDebug : current.smtpDebug,
     fromEmail: body.fromEmail ?? current.fromEmail,
     fromName: body.fromName ?? current.fromName,
@@ -181,7 +183,13 @@ adminRouter.put('/email', (req, res) => {
     clientSubjectTemplate: body.clientSubjectTemplate ?? current.clientSubjectTemplate,
     clientBodyTemplate: body.clientBodyTemplate ?? current.clientBodyTemplate,
   };
-  setEffectiveSetting(sessionId(req), SETTING_KEYS.emailConfig, next);
+  // Persistiert wird ein verschlüsselter smtpPass — die in-memory `next`-Sicht
+  // behält Klartext, damit `maskEmailConfig` korrekt entscheiden kann, ob das
+  // Maskierungs-Token angezeigt wird.
+  setEffectiveSetting(sessionId(req), SETTING_KEYS.emailConfig, {
+    ...next,
+    smtpPass: effectivePass ? encryptString(effectivePass) : '',
+  });
   res.json(maskEmailConfig(next));
 });
 
@@ -210,11 +218,17 @@ adminRouter.put('/dino', (req, res) => {
   const current = getDinoConfig(sessionId(req));
   const incomingKey = typeof body.apiKey === 'string' ? body.apiKey : '';
   const keepKey = incomingKey === '' || incomingKey === DINO_KEY_MASK;
+  const effectiveKey = keepKey ? current.apiKey : incomingKey;
   const next: DinoConfig = {
-    apiKey: keepKey ? current.apiKey : incomingKey,
+    apiKey: effectiveKey,
     ttlHours: typeof body.ttlHours === 'number' ? body.ttlHours : current.ttlHours,
   };
-  setEffectiveSetting(sessionId(req), SETTING_KEYS.dinoConfig, next);
+  // DiNo-API-Key wird verschlüsselt persistiert (Lesen via maybeDecryptString
+  // in getDinoConfig).
+  setEffectiveSetting(sessionId(req), SETTING_KEYS.dinoConfig, {
+    ...next,
+    apiKey: effectiveKey ? encryptString(effectiveKey) : '',
+  });
   res.json(maskDinoConfig(next));
 });
 

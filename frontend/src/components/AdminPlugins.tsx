@@ -548,6 +548,11 @@ function CalendarConnectionTester({
         <p className="text-[11px] text-gray-500 italic">
           Bitte tragen Sie zuerst URL, Benutzername und Passwort ein.
         </p>
+      ) : /^[•●]+$/.test(password) ? (
+        <p className="text-[11px] text-gray-500 italic">
+          Der Test verwendet das bereits gespeicherte Passwort. Tragen Sie ein
+          neues ein, wenn Sie es ändern möchten.
+        </p>
       ) : null}
 
       {result && result.ok === false && (

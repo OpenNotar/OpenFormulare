@@ -52,10 +52,19 @@ router.get('/:id/settings', (req, res) => {
     res.status(404).json({ error: 'Plugin not found' });
     return;
   }
-  res.json({
-    schema: plugin.manifest.settings ?? [],
-    values: getPluginSettings(plugin.manifest.id),
-  });
+  // Passwort-Werte werden vor dem Senden ans Frontend maskiert, damit sie
+  // weder im Browser-Memory noch über die Netzwerk-Pipeline einsehbar sind.
+  // Wenn der User das Feld leer/maskiert lässt, behalten wir beim PUT den
+  // bestehenden Wert (siehe Frontend-Form: leeres Password-Feld → kein Update).
+  const schema = plugin.manifest.settings ?? [];
+  const rawValues = getPluginSettings(plugin.manifest.id);
+  const values: Record<string, string> = { ...rawValues };
+  for (const def of schema) {
+    if (def.type === 'password' && values[def.key]) {
+      values[def.key] = '••••••••';
+    }
+  }
+  res.json({ schema, values });
 });
 
 router.put('/:id/settings', (req, res) => {
@@ -71,8 +80,23 @@ router.put('/:id/settings', (req, res) => {
   }
   const schema = plugin.manifest.settings ?? [];
   const values: Record<string, string> = {};
+  // Für Passwort-Felder: wenn der Caller das Feld leer oder maskiert lässt,
+  // soll der vorhandene Wert erhalten bleiben — sonst würde der Save jedes
+  // andere Setting auch das Passwort versehentlich löschen.
+  const existing = getPluginSettings(plugin.manifest.id);
+  const MASK = '••••••••';
   for (const def of schema) {
     const raw = body[def.key];
+    const isPasswordKept =
+      def.type === 'password' && (raw === undefined || raw === null || raw === '' || raw === MASK);
+    if (isPasswordKept) {
+      if (existing[def.key]) values[def.key] = existing[def.key];
+      else if (def.required && def.default === undefined) {
+        res.status(400).json({ error: `Setting "${def.key}" is required` });
+        return;
+      }
+      continue;
+    }
     if (raw === undefined || raw === null || raw === '') {
       if (def.required && def.default === undefined) {
         res.status(400).json({ error: `Setting "${def.key}" is required` });
@@ -128,8 +152,19 @@ router.put('/:id/settings', (req, res) => {
       values[def.key] = str;
     }
   }
-  replacePluginSettings(plugin.manifest.id, values);
-  res.json({ ok: true, values });
+  // Manifest-Einträge mit `type: 'password'` werden vor dem Persistieren
+  // verschlüsselt (siehe plugins/store.ts → replacePluginSettings).
+  const secretKeys = new Set(
+    schema.filter((def) => def.type === 'password').map((def) => def.key),
+  );
+  replacePluginSettings(plugin.manifest.id, values, secretKeys);
+  // In der Response maskieren wir die Secret-Werte, damit sie nicht über
+  // den HTTP-Roundtrip ins Frontend zurückfließen.
+  const safeValues: Record<string, string> = { ...values };
+  for (const k of secretKeys) {
+    if (safeValues[k]) safeValues[k] = '••••••••';
+  }
+  res.json({ ok: true, values: safeValues });
 });
 
 router.post('/:id/enable', async (req, res) => {
