@@ -260,6 +260,9 @@ export interface FormSchema {
   // translation pool is stored separately in `dialog_translations`.
   languages?: string[];
   isActive?: boolean;
+  // Aus der öffentlichen Übersicht verstecken — Dialog bleibt aber per
+  // Direkt-Link erreichbar. Nur wirksam, solange `isActive !== false`.
+  unlisted?: boolean;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;

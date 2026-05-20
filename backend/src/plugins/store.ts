@@ -1,6 +1,12 @@
 // Persistence layer for plugin metadata + settings.
+//
+// Settings vom Typ `password` (laut Plugin-Manifest) werden mit `encryptString`
+// verschlüsselt persistiert. Reads entschlüsseln transparent — alte Plain-
+// Werte funktionieren weiterhin, werden beim nächsten Save aber automatisch
+// in die verschlüsselte Form überführt.
 
 import { getDatabase } from '../db/database';
+import { encryptString, maybeDecryptString } from '../db/crypto';
 
 export interface PluginRow {
   id: string;
@@ -77,21 +83,38 @@ export function getPluginSettings(pluginId: string): Record<string, string> {
     .prepare('SELECT key, value FROM plugin_settings WHERE plugin_id = ?')
     .all(pluginId) as Array<{ key: string; value: string }>;
   const out: Record<string, string> = {};
-  for (const r of rows) out[r.key] = r.value;
+  // maybeDecryptString lässt nicht-verschlüsselte Werte unverändert durch —
+  // damit funktionieren bestehende Plain-Text-Einträge weiter.
+  for (const r of rows) out[r.key] = maybeDecryptString(r.value);
   return out;
 }
 
-export function setPluginSetting(pluginId: string, key: string, value: string): void {
+// Schreibt einen einzelnen Setting-Wert. Caller markieren mit `isSecret=true`,
+// dass dieser Wert vor dem Persistieren verschlüsselt werden soll.
+export function setPluginSetting(
+  pluginId: string,
+  key: string,
+  value: string,
+  isSecret = false,
+): void {
   const now = new Date().toISOString();
+  const stored = isSecret ? encryptString(value) : value;
   getDatabase()
     .prepare(
       `INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     )
-    .run(pluginId, key, value, now);
+    .run(pluginId, key, stored, now);
 }
 
-export function replacePluginSettings(pluginId: string, values: Record<string, string>): void {
+// Ersetzt sämtliche Settings eines Plugins in einer Transaktion. Optional
+// kann ein `secretKeys`-Set übergeben werden — diese Werte werden mit
+// `encryptString` verschlüsselt persistiert.
+export function replacePluginSettings(
+  pluginId: string,
+  values: Record<string, string>,
+  secretKeys: ReadonlySet<string> = new Set(),
+): void {
   const db = getDatabase();
   const tx = db.transaction((entries: Array<[string, string]>) => {
     db.prepare('DELETE FROM plugin_settings WHERE plugin_id = ?').run(pluginId);
@@ -99,7 +122,10 @@ export function replacePluginSettings(pluginId: string, values: Record<string, s
       'INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES (?, ?, ?, ?)',
     );
     const now = new Date().toISOString();
-    for (const [k, v] of entries) insert.run(pluginId, k, v, now);
+    for (const [k, v] of entries) {
+      const stored = secretKeys.has(k) ? encryptString(v) : v;
+      insert.run(pluginId, k, stored, now);
+    }
   });
   tx(Object.entries(values));
 }

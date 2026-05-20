@@ -796,7 +796,7 @@ export function FieldListEditor({ fields, onChange, fauxStepId = 'kontakt', disa
     const f = {
       id,
       label: info.label,
-      required: false,
+      required: info.defaultRequired === true,
       type: info.id,
       ...(info.defaultProps ?? {}),
     } as unknown as FormField;

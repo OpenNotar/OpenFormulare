@@ -109,6 +109,7 @@ router.post('/', upload.array('files'), async (req, res) => {
           files,
           attachments: dispatch.attachments,
           config: emailCfg,
+          formSchema,
         });
       })());
     }

@@ -18,6 +18,14 @@ import path from 'path';
 import { buildContext } from './context';
 import { registry } from './registry';
 import { upsertPlugin, getPlugin } from './store';
+import {
+  registerPluginPublicRoutes,
+  unregisterPluginPublicRoutes,
+} from '../routes/pluginPublic';
+import {
+  registerPluginAdminRoutes,
+  unregisterPluginAdminRoutes,
+} from '../routes/pluginAdminExt';
 import type { PluginManifest, PluginModule } from './types';
 
 export interface LoadResult {
@@ -150,6 +158,14 @@ export async function loadPlugins(): Promise<LoadResult> {
     } else if (dbRow.enabled) {
       result.activated += 1;
     }
+
+    // Routen-Dispatcher: nur aktive Plugins bekommen ihre öffentlichen
+    // Routen, Admin-Routen sind unabhängig von enabled (damit z. B. der
+    // Verbindungstest auch vor der Aktivierung funktioniert).
+    if (dbRow.enabled) {
+      registerPluginPublicRoutes(registered);
+    }
+    registerPluginAdminRoutes(registered);
   }
 
   console.log(
@@ -166,6 +182,9 @@ export async function activatePlugin(id: string): Promise<void> {
     await plugin.module.onActivate(plugin.context);
   }
   registry.setEnabled(id, true);
+  // Plugin-Routen sofort einhängen — kein Backend-Restart mehr nötig, damit
+  // der Mandant die Endpunkte erreichen kann.
+  registerPluginPublicRoutes(plugin);
 }
 
 export async function deactivatePlugin(id: string): Promise<void> {
@@ -181,4 +200,7 @@ export async function deactivatePlugin(id: string): Promise<void> {
     }
   }
   registry.setEnabled(id, false);
+  // Public-Routen sofort abkoppeln. Admin-Routen bleiben erreichbar, damit
+  // z. B. der Verbindungstest auch bei deaktiviertem Plugin funktioniert.
+  unregisterPluginPublicRoutes(id);
 }

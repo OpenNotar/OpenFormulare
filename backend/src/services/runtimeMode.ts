@@ -13,6 +13,7 @@
 // the new settings UI.
 
 import { SETTING_KEYS, getEffectiveSetting } from '../db/settings';
+import { maybeDecryptString } from '../db/crypto';
 
 function envFlag(name: string): boolean | undefined {
   const raw = process.env[name];
@@ -139,11 +140,15 @@ export function getEmailConfig(sessionId?: string): EmailConfig {
   const stored = getEffectiveSetting<Partial<EmailConfig>>(sessionId, SETTING_KEYS.emailConfig);
   const fallback = emailEnvFallback();
   if (!stored) return fallback;
+  // smtpPass kann als `enc:v1:…`-Token in der DB liegen — bei der Rückgabe
+  // an SMTP-Konsumenten entschlüsseln wir transparent. Plain-Werte (Legacy)
+  // gehen unverändert durch.
+  const storedPass = typeof stored.smtpPass === 'string' ? stored.smtpPass : '';
   return {
     smtpHost: stored.smtpHost ?? fallback.smtpHost,
     smtpPort: typeof stored.smtpPort === 'number' ? stored.smtpPort : fallback.smtpPort,
     smtpUser: stored.smtpUser ?? fallback.smtpUser,
-    smtpPass: stored.smtpPass ?? fallback.smtpPass,
+    smtpPass: storedPass ? maybeDecryptString(storedPass) : fallback.smtpPass,
     smtpDebug: typeof stored.smtpDebug === 'boolean' ? stored.smtpDebug : fallback.smtpDebug,
     fromEmail: stored.fromEmail ?? fallback.fromEmail,
     fromName: stored.fromName ?? fallback.fromName,
@@ -174,8 +179,9 @@ export function getDinoConfig(sessionId?: string): DinoConfig {
   const stored = getEffectiveSetting<Partial<DinoConfig>>(sessionId, SETTING_KEYS.dinoConfig);
   const fallback = dinoEnvFallback();
   if (!stored) return fallback;
+  const storedKey = typeof stored.apiKey === 'string' ? stored.apiKey : '';
   return {
-    apiKey: stored.apiKey ?? fallback.apiKey,
+    apiKey: storedKey ? maybeDecryptString(storedKey) : fallback.apiKey,
     ttlHours: typeof stored.ttlHours === 'number' ? stored.ttlHours : fallback.ttlHours,
   };
 }

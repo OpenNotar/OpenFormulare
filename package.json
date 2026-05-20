@@ -6,6 +6,8 @@
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
-    "build:backend": "npm run build --workspace=backend"
+    "build:backend": "npm run build --workspace=backend",
+    "build:plugins": "node tools/build-plugins.mjs",
+    "postinstall": "node -e \"const fs=require('fs');if(fs.existsSync('./tools/build-plugins.mjs')){require('child_process').spawnSync(process.execPath,['tools/build-plugins.mjs'],{stdio:'inherit'});}else{console.log('[plugins] tools/build-plugins.mjs nicht vorhanden – Plugin-Build wird übersprungen.');}\""
   }
 }

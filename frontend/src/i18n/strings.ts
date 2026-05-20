@@ -14,7 +14,7 @@ export const de = {
   // Form validation
   required: 'Pflichtfeld',
   pleaseSelect: 'Bitte wählen',
-  pleaseSelectAppointment: 'Bitte einen Termin auswählen',
+  pleaseSelectAppointment: 'Bitte wählen Sie einen Termin aus.',
   invalidDate: 'Bitte ein gültiges Datum eingeben',
   invalidDateFuture: 'Bitte ein realistisches Datum eingeben',
   futureDateWarning:

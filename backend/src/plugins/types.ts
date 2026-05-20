@@ -74,7 +74,9 @@ export type PluginEventName = keyof PluginEventMap;
 export interface PluginSettingDefinition {
   key: string;
   label: string;
-  type: 'string' | 'number' | 'boolean' | 'password' | 'url' | 'select';
+  // 'json' stores a serialised JSON string; the admin UI can render a
+  // specialised editor when `componentHint` is set.
+  type: 'string' | 'number' | 'boolean' | 'password' | 'url' | 'select' | 'json';
   description?: string;
   required?: boolean;
   default?: string | number | boolean;
@@ -84,6 +86,10 @@ export interface PluginSettingDefinition {
   // For number fields.
   min?: number;
   max?: number;
+  // Optional hint that lets the admin UI swap in a dedicated editor for this
+  // setting (e.g. "weekly-schedule"). Plugins use this to ship a friendly
+  // configuration UI without bundling their own React code.
+  componentHint?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +110,22 @@ export interface PluginFieldType {
   // type appears in a schema. Empty string ⇒ no UI component (server-side
   // only field).
   frontendEntry?: string;
+  // Soll das Feld beim Anlegen im Dialog-Editor per Default als Pflichtfeld
+  // markiert sein? Der Notar kann es danach im FieldConfigPanel jederzeit
+  // umschalten — das ist nur die initiale Vorbelegung beim Klick auf
+  // „+ <feldname>" in der Plugin-Felder-Toolbar.
+  defaultRequired?: boolean;
+  // Backend-only: formats the raw submission value for this field type into a
+  // human-readable string. Called when rendering PDF / DOCX and when building
+  // the human-readable JSON attachment, so plugin fields don't leak raw JSON
+  // payloads to recipients. The function is NOT serialised to the admin UI.
+  // Receives the plugin's own context so the formatter can read settings
+  // (e.g. timezone, locale) without keeping module-global state.
+  formatValue?: (
+    value: unknown,
+    field: { id: string; label: string; type: string },
+    ctx: PluginContext,
+  ) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,18 +145,43 @@ export interface PluginSettingsApi {
   set(key: string, value: string | number | boolean): void;
 }
 
+export interface PluginMailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
+export interface PluginMailOptions {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  attachments?: PluginMailAttachment[];
+  replyTo?: string;
+}
+
 export interface PluginContext {
   pluginId: string;
   pluginVersion: string;
   log: PluginLogger;
   settings: PluginSettingsApi;
   // Read-only access to dialogs (so plugins can look up a dialog after a
-  // submission event without touching the DB directly). More accessors can be
-  // added here over time without breaking plugin authors.
+  // submission event without touching the DB directly) plus generic helpers
+  // shared with all plugins (email, sender info). New helpers go here so
+  // plugin authors don't need their own SMTP/HTTP setup.
   core: {
     getDialog(id: string): DialogRecord | null;
     listDialogs(): DialogRecord[];
     getDialogSchema(id: string): FormSchema | null;
+    // Versendet eine E-Mail über die zentral im Admin-Bereich konfigurierten
+    // SMTP-Settings. Im SMTP-Debug-Modus wird nichts versendet, sondern eine
+    // Hinweiszeile geloggt — Plugins müssen das nicht selbst prüfen.
+    sendEmail(opts: PluginMailOptions): Promise<void>;
+    // Liefert die im Admin-Bereich konfigurierte Absender-Adresse (`fromEmail`)
+    // bzw. den Anzeigenamen (`fromName`). `null`, falls nicht konfiguriert.
+    // Nützlich z. B. für `ORGANIZER` in iCal-Einladungen.
+    getSenderEmail(): string | null;
+    getSenderName(): string | null;
   };
 }
 
@@ -172,6 +219,11 @@ export interface PluginModule {
   // Plugins can use this to expose their own HTTP endpoints (callback URLs,
   // webhooks, sync endpoints, …). Plugins handle their own auth where needed.
   routes?: (router: Router, ctx: PluginContext) => void;
+  // Express router mounted at /api/admin/plugins/<plugin-id>/ext, behind
+  // requireAdminAuth. Use this for admin-only operations a plugin needs to
+  // expose to the management UI (e.g. probing/discovering an external system
+  // before saving credentials).
+  adminRoutes?: (router: Router, ctx: PluginContext) => void;
   // Field types contributed by this plugin.
   fieldTypes?: PluginFieldType[];
   // Lifecycle hooks for plugin activation/deactivation.

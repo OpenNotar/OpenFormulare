@@ -362,6 +362,10 @@ export interface FormSchema {
   // ISO codes (e.g. ['en', 'fr']). German is always available.
   languages?: string[];
   isActive?: boolean;
+  // `unlisted=true` blendet den Dialog in der öffentlichen Übersicht aus,
+  // lässt ihn aber per Direkt-Link (z. B. iframe-Embed) erreichbar. Nur
+  // wirksam, solange `isActive !== false`.
+  unlisted?: boolean;
   isSystem?: boolean;
   createdAt?: string;
   updatedAt?: string;

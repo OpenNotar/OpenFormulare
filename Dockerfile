@@ -17,10 +17,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_DOWNLOAD=1
+ENV PUPPETEER_SKIP_DOWNLOAD=1 \
+    # Multi-Stage-Build kompiliert die Plugins weiter unten in einem
+    # separaten Schritt — deshalb hier den postinstall-Hook im Root-
+    # package.json überspringen (sonst würde er an dieser Stelle versuchen,
+    # noch nicht kopierte Plugin-Sourcen zu bauen).
+    OPENFORMULARE_SKIP_PLUGIN_BUILD=1
 
-# Install dependencies first (cache-friendly).
+# Install dependencies first (cache-friendly). `tools/` muss vor `npm ci`
+# rein, weil der Root-postinstall-Hook `node tools/build-plugins.mjs`
+# aufruft — auch wenn er via OPENFORMULARE_SKIP_PLUGIN_BUILD=1 sofort
+# zurückkehrt, muss die Datei zumindest existieren, damit Node sie laden
+# kann. tools/ ändert sich selten und sprengt den Build-Cache kaum.
 COPY package*.json ./
+COPY tools tools
 COPY frontend/package*.json frontend/
 COPY backend/package*.json backend/
 RUN npm ci --workspaces --include-workspace-root

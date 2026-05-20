@@ -63,6 +63,33 @@ class Registry {
     }
     return out;
   }
+
+  // Sucht in den aktiven Plugins nach einem Formatter für den Feldtyp und
+  // gibt einen menschenlesbaren String zurück. `null`, wenn kein Plugin den
+  // Feldtyp formatieren kann — Renderer fallen dann auf ihren Standard-Pfad
+  // zurück.
+  formatPluginFieldValue(
+    fieldType: string,
+    value: unknown,
+    field: { id: string; label: string; type: string },
+  ): string | null {
+    for (const p of this.enabledPlugins()) {
+      for (const ft of p.module.fieldTypes ?? []) {
+        if (ft.id !== fieldType) continue;
+        if (typeof ft.formatValue !== 'function') return null;
+        try {
+          return ft.formatValue(value, field, p.context);
+        } catch (err) {
+          p.context.log.error('formatValue threw', {
+            fieldType,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return null;
+        }
+      }
+    }
+    return null;
+  }
 }
 
 export const registry = new Registry();

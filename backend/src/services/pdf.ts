@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer';
+import { registry as pluginRegistry } from '../plugins/registry';
 
 // Minimal schema types (mirrors frontend types/schema.ts)
 interface SchemaField {
@@ -147,6 +148,18 @@ function renderField(field: SchemaField, data: Record<string, unknown>, prefix: 
     if (value === false || value === 'no' || value === 0 || value === '0') {
       return row(field.label, field.noLabel ?? 'Nein');
     }
+  }
+
+  // Plugin-Felder: rohen JSON-Wert nicht unverarbeitet rendern, sondern dem
+  // Plugin die Chance geben, einen menschenlesbaren Text zu liefern.
+  const fieldType = field.type as string;
+  const pluginFormatted = pluginRegistry.formatPluginFieldValue(fieldType, value, {
+    id: field.id,
+    label: field.label,
+    type: fieldType,
+  });
+  if (pluginFormatted !== null) {
+    return row(field.label, pluginFormatted);
   }
 
   return row(field.label, String(value));

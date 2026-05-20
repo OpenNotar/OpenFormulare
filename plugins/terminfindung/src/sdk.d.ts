@@ -11,8 +11,6 @@
 declare module '@openformulare/plugin-sdk' {
   import type { Router } from 'express';
 
-  // -- Generic record shapes the SDK exposes --
-
   export interface DialogRecord {
     id: string;
     title: string;
@@ -30,8 +28,6 @@ declare module '@openformulare/plugin-sdk' {
     title: string;
     [k: string]: unknown;
   }
-
-  // -- Hook event payloads --
 
   export interface DialogSubmittedEvent {
     dialogId: string;
@@ -86,12 +82,10 @@ declare module '@openformulare/plugin-sdk' {
 
   export type PluginEventName = keyof PluginEventMap;
 
-  // -- Settings --
-
   export interface PluginSettingDefinition {
     key: string;
     label: string;
-    type: 'string' | 'number' | 'boolean' | 'password' | 'url' | 'select';
+    type: 'string' | 'number' | 'boolean' | 'password' | 'url' | 'select' | 'json';
     description?: string;
     required?: boolean;
     default?: string | number | boolean;
@@ -99,6 +93,7 @@ declare module '@openformulare/plugin-sdk' {
     pattern?: string;
     min?: number;
     max?: number;
+    componentHint?: string;
   }
 
   export interface PluginFieldType {
@@ -107,9 +102,17 @@ declare module '@openformulare/plugin-sdk' {
     description?: string;
     defaultProps?: Record<string, unknown>;
     frontendEntry?: string;
+    // Initialer Pflichtfeld-Default beim Anlegen im Dialog-Editor.
+    // Notar kann ihn nachträglich umschalten (Field-Config-Panel).
+    defaultRequired?: boolean;
+    // Backend-only formatter for PDF/DOCX/JSON rendering. Returns a
+    // human-readable string for the raw submission value of this field type.
+    formatValue?: (
+      value: unknown,
+      field: { id: string; label: string; type: string },
+      ctx: PluginContext,
+    ) => string;
   }
-
-  // -- Logger / context --
 
   export interface PluginLogger {
     info: (message: string, meta?: Record<string, unknown>) => void;
@@ -124,6 +127,21 @@ declare module '@openformulare/plugin-sdk' {
     set(key: string, value: string | number | boolean): void;
   }
 
+  export interface PluginMailAttachment {
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  }
+
+  export interface PluginMailOptions {
+    to: string;
+    subject: string;
+    html?: string;
+    text?: string;
+    attachments?: PluginMailAttachment[];
+    replyTo?: string;
+  }
+
   export interface PluginContext {
     pluginId: string;
     pluginVersion: string;
@@ -133,6 +151,14 @@ declare module '@openformulare/plugin-sdk' {
       getDialog(id: string): DialogRecord | null;
       listDialogs(): DialogRecord[];
       getDialogSchema(id: string): FormSchema | null;
+      // Send an email via the centrally configured SMTP settings. Plugins
+      // do not need their own SMTP setup. In SMTP-debug mode no message is
+      // actually sent; the call resolves successfully and logs a notice.
+      sendEmail(opts: PluginMailOptions): Promise<void>;
+      // Configured sender (Admin → E-Mail → Absender). Useful e.g. as
+      // ORGANIZER in iCal invitations.
+      getSenderEmail(): string | null;
+      getSenderName(): string | null;
     };
   }
 
@@ -160,6 +186,7 @@ declare module '@openformulare/plugin-sdk' {
     id: string;
     hooks?: HookHandlerMap;
     routes?: (router: Router, ctx: PluginContext) => void;
+    adminRoutes?: (router: Router, ctx: PluginContext) => void;
     fieldTypes?: PluginFieldType[];
     onActivate?: (ctx: PluginContext) => void | Promise<void>;
     onDeactivate?: (ctx: PluginContext) => void | Promise<void>;

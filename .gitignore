@@ -7,6 +7,13 @@ node_modules/
 dist/
 build/
 
+# Versehentlich neben den .ts-Quellen abgelegte JS-Build-Artefakte.
+# Bei CommonJS-Modulauflösung priorisiert Node die .js, was dazu führt,
+# dass ts-node-dev seine frisch transpilierte Version nicht greift —
+# Bugs sind dann schwer nachzuvollziehen.
+backend/src/**/*.js
+frontend/src/**/*.js
+
 # Environment files
 .env
 .env.local

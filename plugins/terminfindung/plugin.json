@@ -1,0 +1,77 @@
+{
+  "id": "terminfindung",
+  "name": "Terminfindung",
+  "version": "2.0.0",
+  "description": "Online-Terminbuchung für Mandanten. Binden Sie einen oder mehrere CalDAV-Kalender an OpenFormulare an und stellen Sie das neue Feld 'Kalender' für die Terminfindung bereit. Pro Wochentag definieren Sie verschiedene Terminarten mit eigener Dauer, Pufferzeit und Kalender. Mandanten sehen nur freie Slots; belegte Zeiten und Pufferzeiten werden automatisch berücksichtigt, und der gewählte Termin wird beim Absenden des Dialogs direkt im passenden Kalender angelegt.",
+  "author": "OpenFormulare-Team",
+  "homepage": "https://github.com/opennotar/openformulare",
+  "main": "dist/index.js",
+  "settings": [
+    {
+      "key": "calendarUrl",
+      "label": "CalDAV-Kalender-URL (Standard-Kalender)",
+      "type": "url",
+      "required": true,
+      "description": "Vollständige URL zu Ihrem Hauptkalender, z. B. https://nextcloud.example.com/remote.php/dav/calendars/<user>/<calendar>/."
+    },
+    {
+      "key": "username",
+      "label": "Benutzername",
+      "type": "string",
+      "required": true,
+      "description": "Benutzername für den Hauptkalender."
+    },
+    {
+      "key": "password",
+      "label": "Passwort / App-Token",
+      "type": "password",
+      "required": true,
+      "description": "Wir empfehlen Ihnen ein App-spezifisches Passwort (z. B. Nextcloud → Sicherheit → App-Passwort)."
+    },
+    {
+      "key": "calendars",
+      "label": "Zusätzliche Kalender (JSON)",
+      "type": "string",
+      "description": "Optional: Weitere Kalender als JSON-Liste, falls Sie mehrere Kalender für verschiedene Terminarten nutzen. Beispiel: [{\"id\":\"team\",\"label\":\"Team\",\"url\":\"https://…\",\"username\":\"u\",\"password\":\"p\"}]. Lassen Sie das Feld leer, wenn Sie nur einen Kalender verwenden."
+    },
+    {
+      "key": "timezone",
+      "label": "Zeitzone",
+      "type": "string",
+      "default": "Europe/Berlin",
+      "description": "IANA-Zeitzone für Ihre Uhrzeiten (z. B. Europe/Berlin, Europe/Vienna, Europe/Zurich)."
+    },
+    {
+      "key": "schedule",
+      "label": "Wochenplan (verfügbare Termine)",
+      "type": "json",
+      "componentHint": "weekly-schedule",
+      "description": "Legen Sie pro Wochentag fest, welche Terminarten zu welchen Uhrzeiten angeboten werden. Pro Terminart können Sie Dauer, Pufferzeit zwischen Terminen und den zugehörigen Kalender einstellen."
+    },
+    {
+      "key": "bookingHorizonDays",
+      "label": "Buchungs-Horizont (Tage)",
+      "type": "number",
+      "default": 60,
+      "min": 1,
+      "max": 365,
+      "description": "Wie viele Tage in die Zukunft sollen Termine buchbar sein?"
+    },
+    {
+      "key": "minLeadTimeMinutes",
+      "label": "Mindest-Vorlauf (Minuten)",
+      "type": "number",
+      "default": 60,
+      "min": 0,
+      "max": 10080,
+      "description": "Slots, deren Beginn weniger als diese Zeit in der Zukunft liegt, werden ausgeblendet."
+    },
+    {
+      "key": "summaryTemplate",
+      "label": "Termin-Titel (Vorlage)",
+      "type": "string",
+      "default": "Termin: {dialogTitle}",
+      "description": "Platzhalter, die Sie verwenden können: {dialogTitle}, {dialogId}, {participantName}, {slotTypeLabel}."
+    }
+  ]
+}

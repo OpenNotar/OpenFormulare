@@ -160,6 +160,15 @@ export function toggleDialogActive(sessionId: string, id: string): DialogRecord 
   return cloneDialog(existing);
 }
 
+export function toggleDialogUnlisted(sessionId: string, id: string): DialogRecord | null {
+  const state = getOrCreateSession(sessionId);
+  const existing = state.dialogs.get(id);
+  if (!existing) return null;
+  existing.unlisted = !existing.unlisted;
+  existing.updatedAt = new Date().toISOString();
+  return cloneDialog(existing);
+}
+
 export interface DemoVersionWithChanges {
   id: number;
   dialogId: string;

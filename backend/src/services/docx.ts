@@ -3,6 +3,7 @@
 // can edit the submission directly in Word.
 
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } from 'docx';
+import { registry as pluginRegistry } from '../plugins/registry';
 
 interface SchemaField {
   id: string;
@@ -142,6 +143,18 @@ function renderField(field: SchemaField, data: Record<string, unknown>, rows: Ta
   if (field.type === 'stars' || field.type === 'scale' || field.type === 'yesno') {
     const formatted = formatRatingValue(field, data[field.id]);
     rows.push(fieldRow(field.label, formatted ?? '–'));
+    return;
+  }
+
+  // Plugin-Felder bekommen die Chance, ihren Wert menschenlesbar zu rendern.
+  const fieldType = field.type as string;
+  const pluginFormatted = pluginRegistry.formatPluginFieldValue(fieldType, data[field.id], {
+    id: field.id,
+    label: field.label,
+    type: fieldType,
+  });
+  if (pluginFormatted !== null) {
+    rows.push(fieldRow(field.label, pluginFormatted));
     return;
   }
 
