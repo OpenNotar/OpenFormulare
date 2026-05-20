@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useParams, useNavigate, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from './hooks/useTheme';
+import { useLanguage, type LanguageCode } from './i18n';
+import { I18nProvider } from './i18n/context';
 import { FormWizard } from './components/FormWizard';
 import { PublicHomePage } from './components/PublicHomePage';
 import { RatingPage } from './components/RatingPage';
@@ -76,7 +78,15 @@ function RequireAdmin({ runtimeMode }: { runtimeMode: RuntimeMode }) {
   return <Outlet />;
 }
 
-function FormPage({ schema }: { schema: FormSchema }) {
+function FormPage({
+  schema,
+  language,
+  onLanguageChange,
+}: {
+  schema: FormSchema;
+  language: LanguageCode;
+  onLanguageChange: (code: LanguageCode) => void;
+}) {
   useTheme();
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -84,7 +94,7 @@ function FormPage({ schema }: { schema: FormSchema }) {
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-primary mb-4 transition-colors">
           ← Alle Formulare
         </Link>
-        <FormWizard schema={schema} />
+        <FormWizard schema={schema} language={language} onLanguageChange={onLanguageChange} />
       </div>
     </div>
   );
@@ -96,6 +106,14 @@ function DialogRoutePage() {
   const [schema, setSchema] = useState<DialogRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // First load: pick whatever language the URL or localStorage requests.
+  // Once the schema is back we know which languages are actually enabled and
+  // can correct an invalid choice silently.
+  const { language, setLanguage } = useLanguage(
+    'de',
+    schema ? (['de', ...(schema.languages ?? [])] as LanguageCode[]) : undefined,
+  );
+
   useEffect(() => {
     if (!route) {
       return;
@@ -105,11 +123,15 @@ function DialogRoutePage() {
     setSchema(null);
     setError(null);
 
-    getDialog(route)
+    getDialog(route, language)
       .then((dialog) => {
-        if (!cancelled) {
-          setSchema(dialog);
+        if (cancelled) return;
+        // Requested language not enabled for this dialog: silently snap back
+        // to German so the switcher doesn't show a phantom option.
+        if (language !== 'de' && !(dialog.languages ?? []).includes(language)) {
+          setLanguage('de');
         }
+        setSchema(dialog);
       })
       .catch((err: Error) => {
         if (!cancelled) {
@@ -120,7 +142,7 @@ function DialogRoutePage() {
     return () => {
       cancelled = true;
     };
-  }, [route]);
+  }, [route, language, setLanguage]);
 
   if (error) {
     return <ErrorPage message={error} />;
@@ -134,7 +156,11 @@ function DialogRoutePage() {
     return <ErrorPage message="Dieser Dialog ist derzeit deaktiviert." />;
   }
 
-  return <FormPage schema={schema} />;
+  return (
+    <I18nProvider language={language}>
+      <FormPage schema={schema} language={language} onLanguageChange={setLanguage} />
+    </I18nProvider>
+  );
 }
 
 function NewEditorPage() {

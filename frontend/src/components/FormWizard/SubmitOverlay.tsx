@@ -3,13 +3,10 @@
 // messages on a timer to make the wait feel less like nothing-is-happening.
 
 import { useEffect, useState } from 'react';
+import { useI18n } from '../../i18n/context';
 
-const STAGES: { delay: number; text: string }[] = [
-  { delay: 0,    text: 'Ihre Daten werden übermittelt …' },
-  { delay: 2500, text: 'Dokumente werden erstellt …' },
-  { delay: 6000, text: 'E-Mail wird versendet …' },
-  { delay: 10000, text: 'Fast fertig …' },
-];
+const STAGE_DELAYS = [0, 2500, 6000, 10000] as const;
+const STAGE_KEYS = ['overlayStage1', 'overlayStage2', 'overlayStage3', 'overlayStage4'] as const;
 
 interface Props {
   visible: boolean;
@@ -27,9 +24,9 @@ export function SubmitOverlay({ visible, error, onRetry, onDismiss }: Props) {
       return;
     }
     const timers: ReturnType<typeof setTimeout>[] = [];
-    STAGES.forEach((stage, i) => {
+    STAGE_DELAYS.forEach((delay, i) => {
       if (i === 0) return;
-      timers.push(setTimeout(() => setStageIdx(i), stage.delay));
+      timers.push(setTimeout(() => setStageIdx(i), delay));
     });
     return () => timers.forEach(clearTimeout);
   }, [visible, error]);
@@ -55,30 +52,28 @@ export function SubmitOverlay({ visible, error, onRetry, onDismiss }: Props) {
 }
 
 function ActiveState({ stage }: { stage: number }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="relative mx-auto mb-6 w-20 h-20">
-        {/* Outer ring */}
         <div className="absolute inset-0 rounded-full border-4 border-primary/15"></div>
-        {/* Spinning arc */}
         <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary border-r-primary animate-spin" />
-        {/* Inner pulse dot */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
         </div>
       </div>
 
       <h2 className="text-lg font-semibold text-gray-800 mb-3">
-        Anfrage wird übermittelt
+        {t('overlayHeading')}
       </h2>
 
       <ul className="space-y-1.5 text-sm text-left max-w-xs mx-auto">
-        {STAGES.map((s, i) => {
+        {STAGE_KEYS.map((key, i) => {
           const done = i < stage;
           const active = i === stage;
           return (
             <li
-              key={i}
+              key={key}
               className={`flex items-center gap-2 transition-colors ${
                 done ? 'text-emerald-700' : active ? 'text-primary font-medium' : 'text-gray-400'
               }`}
@@ -98,14 +93,14 @@ function ActiveState({ stage }: { stage: number }) {
                   <span className="w-2 h-2 rounded-full bg-gray-300" />
                 )}
               </span>
-              <span>{s.text}</span>
+              <span>{t(key)}</span>
             </li>
           );
         })}
       </ul>
 
       <p className="mt-6 text-xs text-gray-400">
-        Bitte schließen Sie das Fenster nicht.
+        {t('doNotClose')}
       </p>
     </>
   );
@@ -114,6 +109,7 @@ function ActiveState({ stage }: { stage: number }) {
 function ErrorState({
   error, onRetry, onDismiss,
 }: { error: string; onRetry?: () => void; onDismiss?: () => void }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="mx-auto mb-5 w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
@@ -122,7 +118,7 @@ function ErrorState({
         </svg>
       </div>
       <h2 className="text-lg font-semibold text-gray-800 mb-2">
-        Übermittlung fehlgeschlagen
+        {t('overlayError')}
       </h2>
       <p className="text-sm text-gray-600 mb-6">
         {error}
@@ -134,7 +130,7 @@ function ErrorState({
             onClick={onDismiss}
             className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           >
-            Schließen
+            {t('close')}
           </button>
         )}
         {onRetry && (
@@ -143,7 +139,7 @@ function ErrorState({
             onClick={onRetry}
             className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-dark rounded-md transition-colors"
           >
-            Erneut versuchen
+            {t('retry')}
           </button>
         )}
       </div>

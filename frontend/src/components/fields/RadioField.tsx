@@ -2,6 +2,7 @@ import { useFormContext } from 'react-hook-form';
 import type { RadioField as RadioFieldType } from '../../types/schema';
 import { resolveOption } from '../../types/schema';
 import { useCondition, evaluateCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { interpolate } from '../../hooks/useInterpolated';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
@@ -14,6 +15,7 @@ interface Props {
 export function RadioField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const { register, formState: { errors }, watch } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -36,7 +38,7 @@ export function RadioField({ field, prefix }: Props) {
                 type="radio"
                 value={opt.value}
                 className="accent-primary w-4 h-4"
-                {...register(name, { required: field.required ? 'Pflichtfeld' : false })}
+                {...register(name, { required: field.required ? t('required') : false })}
               />
               {display}
             </label>

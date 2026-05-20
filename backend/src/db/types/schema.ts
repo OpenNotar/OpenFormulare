@@ -219,6 +219,7 @@ export interface LegalPersonField extends BaseField {
 
 export type FormField =
   | InputField
+  | NumberField
   | TextareaField
   | DateField
   | SelectField
@@ -254,6 +255,10 @@ export interface FormSchema {
   categories?: string[];
   // Identifier of an icon shown on the dialog tile on the public overview.
   icon?: string;
+  // Languages enabled for this dialog in addition to the canonical German.
+  // ISO codes (e.g. ['en', 'fr']). German is always available; the
+  // translation pool is stored separately in `dialog_translations`.
+  languages?: string[];
   isActive?: boolean;
   isSystem?: boolean;
   createdAt?: string;

@@ -7,6 +7,7 @@ import { ensureKontaktStepAtEnd } from './sharedSteps';
 import type { FormSchema } from './types/schema';
 import { diffSchemas } from '../services/schemaDiff';
 import { runYoyoMigrations } from './yoyo';
+import { SUPPORTED_LANGUAGES } from './translations';
 
 export interface DialogRecord extends FormSchema {
   description: string;
@@ -110,6 +111,53 @@ function seedDefaultDialogs(db: Database.Database) {
   tx(defaultDialogs);
 }
 
+// Bulk-load any pre-translated language packs that ship next to the default
+// dialog JSON ({dialogId}.{lang}.json).
+//
+// Runs independently of dialog seeding so that users who upgrade an existing
+// install also get the base English translations once. Skips rows that
+// already exist – never overwrites an admin's edited translations.
+function seedDefaultTranslations(db: Database.Database) {
+  const dir = path.join(__dirname, 'seeds', 'translations');
+  if (!fs.existsSync(dir)) return;
+
+  const exists = db.prepare(
+    'SELECT 1 FROM dialog_translations WHERE dialog_id = ? AND language = ?',
+  );
+  const insert = db.prepare(`
+    INSERT INTO dialog_translations
+      (dialog_id, language, translations_json, updated_at)
+    VALUES (?, ?, ?, ?)
+  `);
+  const dialogExists = db.prepare('SELECT 1 FROM dialogs WHERE id = ?');
+  const now = new Date().toISOString();
+  const validLangs = new Set<string>(SUPPORTED_LANGUAGES as readonly string[]);
+  let loaded = 0;
+
+  for (const entry of fs.readdirSync(dir)) {
+    const match = /^([a-z0-9-]+)\.([a-z]{2})\.json$/.exec(entry);
+    if (!match) continue;
+    const [, dialogId, lang] = match;
+    if (!validLangs.has(lang)) continue; // 'de' is the canonical schema – skip
+    if (!dialogExists.get(dialogId)) continue; // dialog removed by admin – ignore
+    if (exists.get(dialogId, lang)) continue; // already loaded or admin-edited – never overwrite
+
+    const full = path.join(dir, entry);
+    try {
+      const raw = fs.readFileSync(full, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      insert.run(dialogId, lang, JSON.stringify(parsed), now);
+      loaded++;
+    } catch (err) {
+      console.warn(`[seed] failed to load ${entry}:`, err);
+    }
+  }
+
+  if (loaded > 0) {
+    console.log(`[seed] loaded ${loaded} translation pack(s) from ${dir}`);
+  }
+}
+
 export function getDatabase() {
   if (database) {
     return database;
@@ -121,6 +169,7 @@ export function getDatabase() {
   database = new Database(dbPath);
   database.pragma('journal_mode = WAL');
   seedDefaultDialogs(database);
+  seedDefaultTranslations(database);
 
   return database;
 }

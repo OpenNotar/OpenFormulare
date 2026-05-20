@@ -49,8 +49,9 @@ export function listDialogs() {
   return request<DialogRecord[]>('/api/dialogs');
 }
 
-export function getDialog(id: string) {
-  return request<DialogRecord>(`/api/dialogs/${id}`);
+export function getDialog(id: string, language?: string) {
+  const qs = language && language !== 'de' ? `?lang=${encodeURIComponent(language)}` : '';
+  return request<DialogRecord>(`/api/dialogs/${id}${qs}`);
 }
 
 function getAdminHeaders(): Record<string, string> {

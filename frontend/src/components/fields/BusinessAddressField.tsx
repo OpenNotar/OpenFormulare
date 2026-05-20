@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type { BusinessAddressField as BusinessAddressFieldType } from "../../types/schema";
 import { useCondition } from "../../hooks/useCondition";
+import { useI18n } from "../../i18n/context";
 import { getNestedError } from "./utils";
 
 interface Props {
@@ -35,6 +36,7 @@ function SubField({
     register,
     formState: { errors },
   } = useFormContext();
+  const { t } = useI18n();
   const error = getNestedError(errors, name);
   return (
     <div className="flex flex-col gap-0.5">
@@ -46,7 +48,7 @@ function SubField({
         className={inputClass}
         disabled={disabled}
         {...register(name, {
-          required: required && !disabled ? "Pflichtfeld" : false,
+          required: required && !disabled ? t('required') : false,
           ...extraRules,
         })}
       />
@@ -135,6 +137,7 @@ export function BusinessAddressField({ field, prefix }: Props) {
     getValues,
     formState: { errors },
   } = useFormContext();
+  const { t } = useI18n();
 
   const base = prefix ? `${prefix}.${field.id}` : field.id;
   const businessBase = `${base}.geschaeftsanschrift`;
@@ -254,7 +257,7 @@ export function BusinessAddressField({ field, prefix }: Props) {
           className={inputClass}
           disabled={sitzDisabled}
           {...register(sitzOrtName, {
-            required: req && !sitzDisabled ? "Pflichtfeld" : false,
+            required: req && !sitzDisabled ? t('required') : false,
           })}
         />
         {!sitzDisabled && sitzOrtError && (

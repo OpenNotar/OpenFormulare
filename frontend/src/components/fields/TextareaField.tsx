@@ -1,6 +1,7 @@
 import { useFormContext } from 'react-hook-form';
 import type { TextareaField as TextareaFieldType } from '../../types/schema';
 import { useCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
 
@@ -12,6 +13,7 @@ interface Props {
 export function TextareaField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const { register, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -23,7 +25,7 @@ export function TextareaField({ field, prefix }: Props) {
         rows={field.rows ?? 4}
         placeholder={field.placeholder}
         className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
-        {...register(name, { required: field.required ? 'Pflichtfeld' : false })}
+        {...register(name, { required: field.required ? t('required') : false })}
       />
     </FieldWrapper>
   );

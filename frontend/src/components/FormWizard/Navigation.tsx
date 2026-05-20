@@ -1,3 +1,5 @@
+import { useI18n } from '../../i18n/context';
+
 interface Props {
   currentStep: number;
   totalSteps: number;
@@ -8,6 +10,7 @@ interface Props {
 }
 
 export function Navigation({ currentStep, totalSteps, isSubmitting, onBack, onNext, onJumpToStart }: Props) {
+  const { t } = useI18n();
   const isLast = currentStep === totalSteps - 1;
   const showBack = currentStep > 0;
 
@@ -20,7 +23,7 @@ export function Navigation({ currentStep, totalSteps, isSubmitting, onBack, onNe
           disabled={!showBack}
           className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          ← Zurück
+          {t('back')}
         </button>
         <button
           type="button"
@@ -28,12 +31,12 @@ export function Navigation({ currentStep, totalSteps, isSubmitting, onBack, onNe
           disabled={!showBack}
           className="px-3 py-2 text-xs font-medium text-gray-500 border border-gray-200 rounded-md hover:bg-gray-50 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          ⇤ Zurück zum Anfang
+          {t('backToStart')}
         </button>
       </div>
 
       <span className="text-xs text-gray-400 order-first sm:order-none text-center">
-        Schritt {currentStep + 1} von {totalSteps}
+        {t('stepOfTotal', { current: currentStep + 1, total: totalSteps })}
       </span>
 
       <button
@@ -48,12 +51,12 @@ export function Navigation({ currentStep, totalSteps, isSubmitting, onBack, onNe
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Wird gesendet…
+            {t('submitting')}
           </span>
         ) : isLast ? (
-          'Absenden →'
+          t('submit')
         ) : (
-          'Weiter →'
+          t('next')
         )}
       </button>
     </div>

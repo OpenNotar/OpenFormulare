@@ -1,6 +1,7 @@
 import { useFormContext } from 'react-hook-form';
 import type { NumberField as NumberFieldType } from '../../types/schema';
 import { useCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
 
@@ -27,6 +28,7 @@ function stepFor(decimals: number): string {
 export function NumberField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const { register, formState: { errors }, getValues, setValue } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -65,7 +67,7 @@ export function NumberField({ field, prefix }: Props) {
           placeholder={field.placeholder}
           className="flex-1 min-w-0 px-3 py-2 text-sm bg-transparent rounded-md focus:outline-none disabled:bg-gray-50"
           {...register(name, {
-            required: field.required ? 'Pflichtfeld' : false,
+            required: field.required ? t('required') : false,
             valueAsNumber: true,
             ...(typeof field.min === 'number' && { min: { value: field.min, message: `Mindestens ${field.min}` } }),
             ...(typeof field.max === 'number' && { max: { value: field.max, message: `Höchstens ${field.max}` } }),

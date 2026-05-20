@@ -358,6 +358,9 @@ export interface FormSchema {
   // Identifier of an icon shown on the dialog tile on the public overview.
   // See frontend/src/components/DialogIcon for the known names.
   icon?: string;
+  // Languages enabled for this dialog in addition to the canonical German.
+  // ISO codes (e.g. ['en', 'fr']). German is always available.
+  languages?: string[];
   isActive?: boolean;
   isSystem?: boolean;
   createdAt?: string;

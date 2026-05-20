@@ -102,7 +102,10 @@
         ]
       }
     ],
-    "icon": "document"
+    "icon": "document",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "adoption",
@@ -582,7 +585,10 @@
         ]
       }
     ],
-    "icon": "baby"
+    "icon": "baby",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "anteilskauf",
@@ -1300,7 +1306,10 @@
         ]
       }
     ],
-    "icon": "handshake"
+    "icon": "handshake",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "ehevertrag",
@@ -1978,7 +1987,10 @@
         ]
       }
     ],
-    "icon": "ring"
+    "icon": "ring",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "erbauseinandersetzung",
@@ -2579,7 +2591,10 @@
         ]
       }
     ],
-    "icon": "tree"
+    "icon": "tree",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "erbschein",
@@ -3383,7 +3398,10 @@
         ]
       }
     ],
-    "icon": "scroll"
+    "icon": "scroll",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "gbr",
@@ -3853,7 +3871,10 @@
         ]
       }
     ],
-    "icon": "users"
+    "icon": "users",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "handelsregister",
@@ -4371,7 +4392,10 @@
         ]
       }
     ],
-    "icon": "building"
+    "icon": "building",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "immobilienkauf",
@@ -5225,7 +5249,10 @@
         ]
       }
     ],
-    "icon": "house"
+    "icon": "house",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "scheidungsvereinbarung",
@@ -6020,7 +6047,10 @@
         ]
       }
     ],
-    "icon": "heart"
+    "icon": "heart",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "schenkung",
@@ -7005,7 +7035,10 @@
         ]
       }
     ],
-    "icon": "gift"
+    "icon": "gift",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "testament",
@@ -7752,7 +7785,10 @@
         ]
       }
     ],
-    "icon": "scroll"
+    "icon": "scroll",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "unternehmensgruendung",
@@ -8550,7 +8586,10 @@
         ]
       }
     ],
-    "icon": "briefcase"
+    "icon": "briefcase",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "unterschriftsbeglaubigung",
@@ -8907,7 +8946,10 @@
         ]
       }
     ],
-    "icon": "signature"
+    "icon": "signature",
+    "languages": [
+      "en"
+    ]
   },
   {
     "id": "vorsorgevollmacht",
@@ -9374,6 +9416,9 @@
         ]
       }
     ],
-    "icon": "shield"
+    "icon": "shield",
+    "languages": [
+      "en"
+    ]
   }
 ]

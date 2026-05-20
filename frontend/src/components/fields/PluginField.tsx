@@ -21,6 +21,7 @@ import {
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
 import { CalendarField } from './CalendarField';
+import { useI18n } from '../../i18n/context';
 
 interface Props {
   field: FormField;
@@ -29,6 +30,7 @@ interface Props {
 
 export function PluginField({ field, prefix }: Props) {
   const { register, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   const [info, setInfo] = useState<PluginFieldTypeInfo | null>(null);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export function PluginField({ field, prefix }: Props) {
 
   // Common props shared by every fallback shape.
   const reg = register(name, {
-    required: field.required ? 'Pflichtfeld' : false,
+    required: field.required ? t('required') : false,
   });
 
   const baseClass =
@@ -93,7 +95,7 @@ export function PluginField({ field, prefix }: Props) {
     case 'select':
       control = (
         <select className={baseClass} {...reg}>
-          <option value="">— bitte wählen —</option>
+          <option value="">— {t('pleaseSelect')} —</option>
           {(generic.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}

@@ -12,6 +12,7 @@ import { useFormContext, useWatch } from 'react-hook-form';
 import type { FormField } from '../../types/schema';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
+import { useI18n } from '../../i18n/context';
 
 interface Slot {
   start: string;
@@ -38,6 +39,7 @@ interface Props {
 
 export function CalendarField({ field, prefix }: Props) {
   const { register, setValue, control, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   const name = prefix ? `${prefix}.${field.id}` : field.id;
   const error = getNestedError(errors, name);
   const currentValue = useWatch({ control, name }) as string | undefined;
@@ -61,8 +63,8 @@ export function CalendarField({ field, prefix }: Props) {
   // Make the field part of the form's value graph (without rendering an input).
   // We register it so the form picks up validation + value, then write via setValue.
   useEffect(() => {
-    register(name, { required: field.required ? 'Bitte einen Termin auswählen' : false });
-  }, [register, name, field.required]);
+    register(name, { required: field.required ? t('pleaseSelectAppointment') : false });
+  }, [register, name, field.required, t]);
 
   // Load calendar list once.
   useEffect(() => {

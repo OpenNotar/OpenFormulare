@@ -7,6 +7,9 @@ import { Navigation } from './Navigation';
 import { SubmitOverlay } from './SubmitOverlay';
 import { getDemoHeaders } from '../../lib/runtimeMode';
 import { useBranding } from '../../hooks/useBranding';
+import { useI18n } from '../../i18n/context';
+import { LanguageSwitcher } from '../LanguageSwitcher';
+import type { LanguageCode } from '../../i18n';
 import {
   decryptSnapshot,
   encryptSnapshot,
@@ -83,6 +86,8 @@ function deserializeData(data: Record<string, unknown>): Record<string, unknown>
 
 interface Props {
   schema: FormSchema;
+  language?: LanguageCode;
+  onLanguageChange?: (code: LanguageCode) => void;
 }
 
 function collectFieldNames(fields: FormField[], prefix?: string): string[] {
@@ -147,7 +152,8 @@ function collectFiles(data: Record<string, unknown>): File[] {
   return files;
 }
 
-export function FormWizard({ schema }: Props) {
+export function FormWizard({ schema, language, onLanguageChange }: Props) {
+  const { t } = useI18n();
   const [currentStep, setCurrentStep] = useState(0);
   // Highest step ever reached in the current session – defines how far the
   // step indicator allows direct navigation by click.
@@ -208,9 +214,7 @@ export function FormWizard({ schema }: Props) {
         // user can navigate normally if they reload or come back later.
         return;
       }
-      const ok = window.confirm(
-        'Möchten Sie diesen Dialog wirklich verlassen? Ihre Eingaben gehen sonst verloren.',
-      );
+      const ok = window.confirm(t('confirmLeave'));
       if (ok) {
         // The browser already moved us back one entry by firing popstate.
         // Push our guard back so the user can stay on the form, then step
@@ -234,12 +238,10 @@ export function FormWizard({ schema }: Props) {
   }, [isDirty, submitted]);
 
   async function handleSave() {
-    const password = window.prompt(
-      'Bitte geben Sie ein Passwort ein, mit dem die Speicherdatei verschlüsselt werden soll. Sie benötigen dieses Passwort später beim Laden.',
-    );
+    const password = window.prompt(t('promptSavePassword'));
     if (password === null) return; // cancelled
     if (password.length < 4) {
-      window.alert('Bitte ein Passwort mit mindestens 4 Zeichen wählen.');
+      window.alert(t('passwordTooShort'));
       return;
     }
 
@@ -282,7 +284,7 @@ export function FormWizard({ schema }: Props) {
             setLoadError(`Falsche Formulardatei: erwartet „${schema.id}", erhalten „${file2.formType}".`);
             return;
           }
-          const password = window.prompt('Bitte das Passwort der Speicherdatei eingeben:');
+          const password = window.prompt(t('promptLoadPassword'));
           if (password === null) return;
           let payload: { data: Record<string, unknown> };
           try {
@@ -313,9 +315,9 @@ export function FormWizard({ schema }: Props) {
           return;
         }
 
-        setLoadError('Datei konnte nicht gelesen werden. Bitte eine gültige .notar.json-Datei wählen.');
+        setLoadError(t('fileReadError'));
       } catch {
-        setLoadError('Datei konnte nicht gelesen werden. Bitte eine gültige .notar.json-Datei wählen.');
+        setLoadError(t('fileReadError'));
       }
     };
     reader.readAsText(file);
@@ -382,7 +384,7 @@ export function FormWizard({ schema }: Props) {
       // submitting bleibt true bis unmount auf der "Vielen Dank"-Seite – das
       // Overlay wird durch die submitted-Branch ohnehin nicht mehr gezeigt.
     } catch {
-      setSubmitError('Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.');
+      setSubmitError(t('submitError'));
       setSubmitting(false);
     }
   }
@@ -393,9 +395,9 @@ export function FormWizard({ schema }: Props) {
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl mx-auto mb-4">
           ✓
         </div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">Vielen Dank!</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">{t('thankYou')}</h2>
         <p className="text-gray-500 text-sm max-w-sm mx-auto">
-          Ihre Anfrage wurde erfolgreich übermittelt. Der Notar wird sich in Kürze bei Ihnen melden.
+          {t('thankYouMessage')}
         </p>
       </div>
     );
@@ -416,30 +418,40 @@ export function FormWizard({ schema }: Props) {
         }}
       />
       <div className="hyphens-de bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-primary px-6 py-4 flex items-center justify-between gap-4">
+        <div className="bg-primary px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-white text-lg font-semibold">{schema.title}</h1>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {language && onLanguageChange && (schema.languages?.length ?? 0) > 0 && (
+              <div className="rounded-md bg-white/10 border border-white/20 px-2 py-1">
+                <LanguageSwitcher
+                  available={['de', ...((schema.languages ?? []) as LanguageCode[])]}
+                  active={language}
+                  onChange={onLanguageChange}
+                  className="text-white"
+                />
+              </div>
+            )}
             <button
               type="button"
               onClick={handleLoadClick}
-              title="Gespeicherten Stand laden"
+              title={t('loadTitle')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/80 border border-white/30 rounded-md hover:bg-white/10 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
               </svg>
-              Laden
+              {t('load')}
             </button>
             <button
               type="button"
               onClick={handleSave}
-              title="Aktuellen Stand speichern"
+              title={t('saveTitle')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white/80 border border-white/30 rounded-md hover:bg-white/10 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              Speichern
+              {t('save')}
             </button>
           </div>
         </div>

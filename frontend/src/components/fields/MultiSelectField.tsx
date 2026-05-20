@@ -6,6 +6,7 @@ import { Controller, useFormContext } from 'react-hook-form';
 import type { MultiSelectField as MultiSelectFieldType } from '../../types/schema';
 import { resolveOption } from '../../types/schema';
 import { useCondition, evaluateCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { interpolate } from '../../hooks/useInterpolated';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
@@ -18,6 +19,7 @@ interface Props {
 export function MultiSelectField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const { control, formState: { errors }, watch } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -36,12 +38,12 @@ export function MultiSelectField({ field, prefix }: Props) {
         rules={{
           validate: (value: unknown) => {
             const arr = Array.isArray(value) ? value : [];
-            if (field.required && arr.length === 0) return 'Pflichtfeld';
+            if (field.required && arr.length === 0) return t('required');
             if (typeof field.minSelected === 'number' && arr.length < field.minSelected) {
-              return `Bitte mindestens ${field.minSelected} auswählen`;
+              return t('multiSelectMin', { n: field.minSelected });
             }
             if (typeof field.maxSelected === 'number' && arr.length > field.maxSelected) {
-              return `Bitte höchstens ${field.maxSelected} auswählen`;
+              return t('multiSelectMax', { n: field.maxSelected });
             }
             return true;
           },

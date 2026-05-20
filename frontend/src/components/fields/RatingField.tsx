@@ -5,6 +5,7 @@ import type {
   YesNoField as YesNoFieldType,
 } from '../../types/schema';
 import { useCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { FieldWrapper } from './FieldWrapper';
 import { getNestedError } from './utils';
 
@@ -27,6 +28,7 @@ interface StarsProps {
 export function StarsField({ field, prefix }: StarsProps) {
   const visible = useCondition(field.condition, prefix);
   const { control, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -47,7 +49,7 @@ export function StarsField({ field, prefix }: StarsProps) {
         rules={{
           validate: (v) =>
             field.required && (v === undefined || v === null || v === '')
-              ? 'Pflichtfeld'
+              ? t('required')
               : true,
         }}
         render={({ field: { value, onChange } }) => {
@@ -92,6 +94,7 @@ interface ScaleProps {
 export function ScaleField({ field, prefix }: ScaleProps) {
   const visible = useCondition(field.condition, prefix);
   const { control, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -114,7 +117,7 @@ export function ScaleField({ field, prefix }: ScaleProps) {
         rules={{
           validate: (v) =>
             field.required && (v === undefined || v === null || v === '')
-              ? 'Pflichtfeld'
+              ? t('required')
               : true,
         }}
         render={({ field: { value, onChange } }) => {
@@ -160,6 +163,7 @@ interface YesNoProps {
 export function YesNoField({ field, prefix }: YesNoProps) {
   const visible = useCondition(field.condition, prefix);
   const { control, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -180,7 +184,7 @@ export function YesNoField({ field, prefix }: YesNoProps) {
         rules={{
           validate: (v) =>
             field.required && (v === undefined || v === null || v === '')
-              ? 'Pflichtfeld'
+              ? t('required')
               : true,
         }}
         render={({ field: { value, onChange } }) => (

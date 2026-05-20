@@ -18,6 +18,7 @@ import {
   FieldConfigPanel,
 } from './shared';
 import { DialogIcon, DIALOG_ICON_NAMES, DIALOG_ICON_LABELS } from '../DialogIcon';
+import { TranslationsEditor } from './TranslationsEditor';
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -76,6 +77,9 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
       releaseLock(dialogId).catch(() => {});
     };
   }, [dialogId, tryAcquireLock]);
+
+  // Translations editor
+  const [showTranslations, setShowTranslations] = useState(false);
 
   // Versions
   const [showVersions, setShowVersions] = useState(false);
@@ -282,6 +286,15 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
         </div>
       )}
 
+      {/* Translations editor */}
+      {showTranslations && (
+        <TranslationsEditor
+          schema={schema}
+          onSchemaChange={(patch) => updateSchema(patch)}
+          onClose={() => setShowTranslations(false)}
+        />
+      )}
+
       {/* Versions modal */}
       {showVersions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowVersions(false)}>
@@ -370,6 +383,19 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Verlauf
+            </button>
+          )}
+          {dialogId && (
+            <button onClick={() => setShowTranslations(true)} className={btnGhost + ' border-gray-300 text-gray-600 hover:bg-gray-50'}>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2M5 8c1 3 4 6 8 6M13 8s-1 3-5 8M13 21l4-10 4 10M14 17h6" />
+              </svg>
+              Sprachen
+              {(schema.languages?.length ?? 0) > 0 && (
+                <span className="ml-1 text-[10px] bg-primary/10 text-primary rounded-full px-1.5 py-0.5">
+                  {schema.languages?.length}
+                </span>
+              )}
             </button>
           )}
           <button onClick={() => setPreview(true)} className={btnGhost + ' border-gray-300 text-gray-600 hover:bg-gray-50'}>

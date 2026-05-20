@@ -1,6 +1,7 @@
 import { useFormContext } from 'react-hook-form';
 import type { CheckboxField as CheckboxFieldType } from '../../types/schema';
 import { useCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { getNestedError } from './utils';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 export function CheckboxField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const { register, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   if (!visible) return null;
 
   const name = prefix ? `${prefix}.${field.id}` : field.id;
@@ -22,7 +24,7 @@ export function CheckboxField({ field, prefix }: Props) {
         <input
           type="checkbox"
           className="mt-0.5 accent-primary w-4 h-4 shrink-0"
-          {...register(name, { required: field.required ? 'Pflichtfeld' : false })}
+          {...register(name, { required: field.required ? t('required') : false })}
         />
         <span className="text-sm text-gray-700 leading-snug">
           {field.checkboxLabel}

@@ -11,6 +11,8 @@ import {
 } from '../db/database';
 import * as demoStore from '../db/demoStore';
 import { isDemoMode } from '../services/runtimeMode';
+import { getTranslation, SUPPORTED_LANGUAGES } from '../db/translations';
+import { applyTranslations } from '../services/i18nKeys';
 
 const router = Router();
 
@@ -21,6 +23,7 @@ const dialogSchema = z.object({
   category: z.string().optional().default('Allgemein'),
   categories: z.array(z.string()).optional(),
   icon: z.string().optional(),
+  languages: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
   steps: z.array(
     z.object({
@@ -45,6 +48,21 @@ router.get('/:id', (req, res) => {
   if (!dialog || dialog.isActive === false) {
     res.status(404).json({ error: 'Dialog nicht gefunden' });
     return;
+  }
+
+  // Optional language substitution. ?lang=xx replaces translatable strings
+  // in-place from the `dialog_translations` table. German (the canonical
+  // schema) is returned untouched. Unknown / non-enabled languages fall
+  // back to German silently so a stale URL never breaks the form.
+  const lang = typeof req.query.lang === 'string' ? req.query.lang : null;
+  const enabledLangs = dialog.languages ?? [];
+  const supported = (SUPPORTED_LANGUAGES as readonly string[]).includes(lang ?? '');
+  if (lang && lang !== 'de' && supported && enabledLangs.includes(lang) && !isDemoMode()) {
+    const translations = getTranslation(dialog.id, lang);
+    if (translations) {
+      res.json(applyTranslations(dialog, translations));
+      return;
+    }
   }
 
   res.json(dialog);

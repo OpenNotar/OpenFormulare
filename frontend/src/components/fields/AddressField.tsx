@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import type { AddressField as AddressFieldType } from '../../types/schema';
 import { useCondition } from '../../hooks/useCondition';
+import { useI18n } from '../../i18n/context';
 import { getNestedError } from './utils';
 
 interface Props {
@@ -23,6 +24,7 @@ interface SubFieldProps {
 
 function SubField({ name, label, placeholder, required, defaultValue, extraRules }: SubFieldProps) {
   const { register, formState: { errors } } = useFormContext();
+  const { t } = useI18n();
   const error = getNestedError(errors, name);
   return (
     <div className="flex flex-col gap-0.5">
@@ -32,7 +34,7 @@ function SubField({ name, label, placeholder, required, defaultValue, extraRules
         placeholder={placeholder}
         defaultValue={defaultValue}
         className={inputClass}
-        {...register(name, { required: required ? 'Pflichtfeld' : false, ...extraRules })}
+        {...register(name, { required: required ? t('required') : false, ...extraRules })}
       />
       {error && <p className="text-xs text-red-500">{error.message as string}</p>}
     </div>
@@ -42,6 +44,7 @@ function SubField({ name, label, placeholder, required, defaultValue, extraRules
 export function AddressField({ field, prefix }: Props) {
   const visible = useCondition(field.condition, prefix);
   const [showHelp, setShowHelp] = useState(false);
+  const { t } = useI18n();
   if (!visible) return null;
 
   const base = prefix ? `${prefix}.${field.id}` : field.id;
@@ -76,31 +79,31 @@ export function AddressField({ field, prefix }: Props) {
       </div>
       <div className="flex gap-2">
         <div className="flex-1">
-          <SubField name={`${base}.strasse`} label="Straße" placeholder="Musterstraße" required={req} />
+          <SubField name={`${base}.strasse`} label={t('addrStreet')} placeholder="Musterstraße" required={req} />
         </div>
         <div className="w-24">
-          <SubField name={`${base}.hausnummer`} label="Nr." placeholder="12a" required={req} />
+          <SubField name={`${base}.hausnummer`} label={t('addrHouseNumber')} placeholder="12a" required={req} />
         </div>
       </div>
       <div className="flex gap-2">
         <div className="w-28">
           <SubField
             name={`${base}.plz`}
-            label="PLZ"
+            label={t('addrZip')}
             placeholder="12345"
             required={req}
-            extraRules={{ validate: (v: string) => !v || /^\d{5}$/.test(v) || 'Ungültige PLZ' }}
+            extraRules={{ validate: (v: string) => !v || /^\d{5}$/.test(v) || t('invalidZip') }}
           />
         </div>
         <div className="flex-1">
-          <SubField name={`${base}.ort`} label="Ort" placeholder="Berlin" required={req} />
+          <SubField name={`${base}.ort`} label={t('addrCity')} placeholder="Berlin" required={req} />
         </div>
       </div>
       <div className="flex gap-2">
         <div className="flex-1">
           <SubField
             name={`${base}.land`}
-            label="Land"
+            label={t('addrCountry')}
             placeholder="Deutschland"
             required={false}
             defaultValue="Deutschland"
