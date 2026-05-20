@@ -31,8 +31,8 @@ router.get('/export', (_req, res) => {
   }
   const dialogs = listDialogs();
   res.setHeader('Content-Disposition', 'attachment; filename="dialogs-export.json"');
-  res.json(dialogs.map(({ id, title, description, category, isActive, isSystem, steps }) => ({
-    id, title, description, category, isActive, isSystem, steps,
+  res.json(dialogs.map(({ id, title, description, category, icon, isActive, isSystem, steps }) => ({
+    id, title, description, category, icon, isActive, isSystem, steps,
   })));
 });
 

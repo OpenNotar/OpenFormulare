@@ -13,6 +13,10 @@ export interface Branding {
   };
   faviconUrl?: string;
   logoUrl?: string;
+  // Public overview page – customisable header text and admin-link toggle.
+  homeTitle?: string;
+  homeSubtitle?: string;
+  hideAdminButton?: boolean;
 }
 
 let cache: Branding | null = null;
@@ -39,6 +43,10 @@ async function load(): Promise<Branding> {
 
 export function clearBrandingCache() {
   cache = null;
+}
+
+export function applyBrandingTheme(branding: Branding) {
+  applyTheme(branding);
 }
 
 function applyTheme(branding: Branding) {

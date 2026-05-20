@@ -15,6 +15,9 @@ export interface BrandingSettings {
   };
   faviconUrl?: string;
   logoUrl?: string;
+  homeTitle?: string;
+  homeSubtitle?: string;
+  hideAdminButton?: boolean;
 }
 
 function adminHeaders(extra?: Record<string, string>): Record<string, string> {

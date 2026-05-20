@@ -17,6 +17,7 @@ import {
   makeEmptyStep,
   FieldConfigPanel,
 } from './shared';
+import { DialogIcon, DIALOG_ICON_NAMES, DIALOG_ICON_LABELS } from '../DialogIcon';
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -543,6 +544,24 @@ export function FormEditor({ initialSchema, onSave }: FormEditorProps) {
                     onChange={(e) => updateSchema({ description: e.target.value })}
                     placeholder="Kurze Beschreibung für die Übersicht"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Icon (Übersichtsseite)</label>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-md bg-primary/10 text-primary shrink-0">
+                      <DialogIcon name={schema.icon} className="w-5 h-5" />
+                    </span>
+                    <select
+                      className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      value={schema.icon ?? ''}
+                      onChange={(e) => updateSchema({ icon: e.target.value || undefined })}
+                    >
+                      <option value="">— kein Icon —</option>
+                      {DIALOG_ICON_NAMES.map((n) => (
+                        <option key={n} value={n}>{DIALOG_ICON_LABELS[n]}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input

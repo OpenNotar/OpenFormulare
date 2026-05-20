@@ -101,7 +101,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "document"
   },
   {
     "id": "adoption",
@@ -580,7 +581,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "baby"
   },
   {
     "id": "anteilskauf",
@@ -1297,7 +1299,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "handshake"
   },
   {
     "id": "ehevertrag",
@@ -1974,7 +1977,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "ring"
   },
   {
     "id": "erbauseinandersetzung",
@@ -2574,7 +2578,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "tree"
   },
   {
     "id": "erbschein",
@@ -3377,7 +3382,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "scroll"
   },
   {
     "id": "gbr",
@@ -3846,7 +3852,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "users"
   },
   {
     "id": "handelsregister",
@@ -4363,7 +4370,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "building"
   },
   {
     "id": "immobilienkauf",
@@ -5216,7 +5224,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "house"
   },
   {
     "id": "scheidungsvereinbarung",
@@ -6010,7 +6019,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "heart"
   },
   {
     "id": "schenkung",
@@ -6994,7 +7004,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "gift"
   },
   {
     "id": "testament",
@@ -7740,7 +7751,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "scroll"
   },
   {
     "id": "unternehmensgruendung",
@@ -8537,7 +8549,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "briefcase"
   },
   {
     "id": "unterschriftsbeglaubigung",
@@ -8893,7 +8906,8 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "signature"
   },
   {
     "id": "vorsorgevollmacht",
@@ -9359,6 +9373,7 @@
           }
         ]
       }
-    ]
+    ],
+    "icon": "shield"
   }
 ]

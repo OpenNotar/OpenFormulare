@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTheme } from "../hooks/useTheme";
+import { useBranding } from "../hooks/useBranding";
 import { listDialogs, type DialogRecord } from "../lib/dialogsApi";
 import { getCategories } from "../types/schema";
+import { DialogIcon } from "./DialogIcon";
+
+const DEFAULT_HOME_TITLE = "OpenFormulare";
+const DEFAULT_HOME_SUBTITLE =
+  "Wählen Sie den passenden Dialog aus, um Ihre notarielle Angelegenheit vorzubereiten.";
 
 const categoryColors: Record<string, string> = {
   Beglaubigung: "bg-blue-100 text-blue-700",
@@ -16,6 +22,7 @@ const categoryColors: Record<string, string> = {
 
 export function PublicHomePage() {
   useTheme();
+  const branding = useBranding();
   const [dialogs, setDialogs] = useState<DialogRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,13 +80,16 @@ export function PublicHomePage() {
     return matchesSearch && matchesCategory;
   });
 
+  const homeTitle = branding?.homeTitle?.trim() || DEFAULT_HOME_TITLE;
+  const homeSubtitle = branding?.homeSubtitle?.trim() || DEFAULT_HOME_SUBTITLE;
+  const showAdminButton = !branding?.hideAdminButton;
+
   return (
     <div className="hyphens-de min-h-screen bg-gray-50">
       <div className="bg-primary text-white py-10 px-4 text-center">
-        <h1 className="text-3xl font-bold mb-2">OpenFormulare</h1>
-        <p className="text-white/75 text-sm max-w-xl mx-auto">
-          Wählen Sie den passenden Dialog aus, um Ihre notarielle Angelegenheit
-          vorzubereiten.
+        <h1 className="text-3xl font-bold mb-2">{homeTitle}</h1>
+        <p className="text-white/75 text-sm max-w-xl mx-auto whitespace-pre-line">
+          {homeSubtitle}
         </p>
       </div>
 
@@ -92,12 +102,14 @@ export function PublicHomePage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full sm:max-w-xl border border-gray-300 rounded-lg px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <Link
-            to="/admin/login"
-            className="flex items-center justify-center gap-1.5 px-4 py-3 text-sm font-medium border border-gray-300 text-gray-600 bg-white rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Admin
-          </Link>
+          {showAdminButton && (
+            <Link
+              to="/admin/login"
+              className="flex items-center justify-center gap-1.5 px-4 py-3 text-sm font-medium border border-gray-300 text-gray-600 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mb-8">
@@ -138,21 +150,28 @@ export function PublicHomePage() {
                   to={`/${dialog.id}`}
                   className="bg-white rounded-xl border p-5 shadow-sm transition-all flex flex-col gap-3 border-gray-200 hover:shadow-md hover:border-primary"
                 >
-                  <div className="flex flex-col gap-2">
-                    <h2 className="text-base font-semibold text-gray-800">
-                      {dialog.title}
-                    </h2>
-                    <div className="flex flex-wrap gap-1">
-                      {display.map((cat) => (
-                        <span
-                          key={cat}
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            categoryColors[cat] || "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {cat}
-                        </span>
-                      ))}
+                  <div className="flex items-start gap-3">
+                    {dialog.icon && (
+                      <span className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
+                        <DialogIcon name={dialog.icon} className="w-6 h-6" />
+                      </span>
+                    )}
+                    <div className="flex flex-col gap-2 min-w-0">
+                      <h2 className="text-base font-semibold text-gray-800">
+                        {dialog.title}
+                      </h2>
+                      <div className="flex flex-wrap gap-1">
+                        {display.map((cat) => (
+                          <span
+                            key={cat}
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              categoryColors[cat] || "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 leading-relaxed flex-1">

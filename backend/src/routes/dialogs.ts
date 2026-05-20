@@ -20,6 +20,7 @@ const dialogSchema = z.object({
   description: z.string().optional().default(''),
   category: z.string().optional().default('Allgemein'),
   categories: z.array(z.string()).optional(),
+  icon: z.string().optional(),
   isActive: z.boolean().optional(),
   steps: z.array(
     z.object({

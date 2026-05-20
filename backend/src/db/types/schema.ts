@@ -252,6 +252,8 @@ export interface FormSchema {
   description?: string;
   category?: string;
   categories?: string[];
+  // Identifier of an icon shown on the dialog tile on the public overview.
+  icon?: string;
   isActive?: boolean;
   isSystem?: boolean;
   createdAt?: string;

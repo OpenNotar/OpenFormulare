@@ -80,6 +80,15 @@ const DEFAULT_BRANDING = {
   // Favicon URL (data URI or absolute URL).
   faviconUrl: '',
   logoUrl: '',
+  // Public home page header. Empty values fall back to built-in defaults
+  // ("OpenFormulare" / standard subtitle). Notars use this to put their
+  // own kanzlei name into the iframe-embedded overview.
+  homeTitle: '',
+  homeSubtitle: '',
+  // Hide the "Admin" button on the public overview page. Useful when the
+  // page is embedded in a public website and the link should not be
+  // visible to clients.
+  hideAdminButton: false,
 };
 
 function cloneStep(step: FormStep): FormStep {

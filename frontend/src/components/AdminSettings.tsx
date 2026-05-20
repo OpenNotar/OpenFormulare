@@ -9,7 +9,7 @@ import {
   getEmailConfig, putEmailConfig, type EmailConfig,
   getDinoConfig, putDinoConfig, type DinoConfig,
 } from '../lib/settingsApi';
-import { clearBrandingCache } from '../hooks/useBranding';
+import { clearBrandingCache, applyBrandingTheme } from '../hooks/useBranding';
 import { clearPersonTemplatesCache } from '../hooks/usePersonTemplates';
 import { FieldListEditor } from './FormEditor/shared';
 import type { FormStep, FormField } from '../types/schema';
@@ -107,6 +107,7 @@ function BrandingTab() {
     try {
       await putBranding(data);
       clearBrandingCache();
+      applyBrandingTheme(data);
       setStatus('Gespeichert.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
@@ -123,6 +124,44 @@ function BrandingTab() {
       <Field label="Favicon-URL" value={data.faviconUrl ?? ''} onChange={(v) => update('faviconUrl', v)} placeholder="https://… oder data:image/png;base64,…" disabled={disabled} />
       <Field label="Logo-URL" value={data.logoUrl ?? ''} onChange={(v) => update('logoUrl', v)} placeholder="https://…" disabled={disabled} />
       <Field label="PDF-Primärfarbe (Hex ohne #)" value={data.primaryColor ?? ''} onChange={(v) => update('primaryColor', v)} placeholder="1a3a5c" disabled={disabled} />
+
+      <div className="border-t border-gray-100 pt-4 mt-2">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Übersichtsseite</h3>
+        <div className="flex flex-col gap-4">
+          <Field
+            label="Überschrift"
+            value={data.homeTitle ?? ''}
+            onChange={(v) => update('homeTitle', v)}
+            placeholder="OpenFormulare"
+            hint="Erscheint als große Überschrift im Kopf der öffentlichen Übersicht. Leer = Standardwert."
+            disabled={disabled}
+          />
+          <Field
+            label="Untertitel"
+            value={data.homeSubtitle ?? ''}
+            onChange={(v) => update('homeSubtitle', v)}
+            placeholder="Wählen Sie den passenden Dialog aus, um Ihre notarielle Angelegenheit vorzubereiten."
+            hint="Erscheint unter der Überschrift. Leer = Standardtext."
+            disabled={disabled}
+          />
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              checked={data.hideAdminButton ?? false}
+              onChange={(e) => update('hideAdminButton', e.target.checked)}
+              disabled={disabled}
+            />
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-gray-700">Admin-Button auf der Übersicht ausblenden</span>
+              <span className="text-xs text-gray-500">
+                Wenn aktiv, wird der Link zum Admin-Login auf der öffentlichen Übersichtsseite nicht angezeigt.
+                Der Admin-Bereich ist weiterhin unter <code className="bg-gray-100 px-1 rounded">/admin/login</code> erreichbar.
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 pt-2">
         <button

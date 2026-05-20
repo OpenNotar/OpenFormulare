@@ -355,6 +355,9 @@ export interface FormSchema {
   category?: string;
   // Multi-category support. A dialog can belong to several categories.
   categories?: string[];
+  // Identifier of an icon shown on the dialog tile on the public overview.
+  // See frontend/src/components/DialogIcon for the known names.
+  icon?: string;
   isActive?: boolean;
   isSystem?: boolean;
   createdAt?: string;
