@@ -15,7 +15,7 @@
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAdminAuth } from '../auth/adminAuth';
+import { requireAdminAuth, requireAdminRole } from '../auth/adminAuth';
 import {
   createTemplate,
   deleteTemplate,
@@ -31,7 +31,8 @@ import {
 
 const router = Router();
 
-router.use(requireAdminAuth);
+// Bewertungsvorlagen gehoeren zur Konfiguration -> nur Administratoren.
+router.use(requireAdminAuth, requireAdminRole);
 
 const questionSchema = z.object({
   id: z.union([z.number(), z.string()]),

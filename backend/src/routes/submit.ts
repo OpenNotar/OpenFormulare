@@ -6,7 +6,7 @@ import { generatePdf } from '../services/pdf';
 import { generateDocx } from '../services/docx';
 import { sendEmail } from '../services/email';
 import { mapToDiNo } from '../services/dinoMapper';
-import { insertSubmission } from '../db/submissions';
+import { insertSubmission, insertSubmissionFiles } from '../db/submissions';
 import { isDemoMode, getDispatchConfig, getEmailConfig } from '../services/runtimeMode';
 import { emit as emitPluginEvent } from '../plugins/hookBus';
 import { getDialog } from '../db/database';
@@ -25,7 +25,13 @@ router.use(limiter);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+    // Obergrenze für die Anzahl: der DiNo-Pull liefert alle offenen
+    // Einreichungen samt Base64-Anhängen in EINER Response — ohne Deckel
+    // wächst die unbegrenzt.
+    files: 20,
+  },
 });
 
 const bodySchema = z.object({
@@ -81,14 +87,31 @@ router.post('/', upload.array('files'), async (req, res) => {
       return;
     }
 
-    const dinoMapping = mapToDiNo(formType, data);
+    // Schema mitgeben: liefert die Repeater-Labels, damit die Rolle der
+    // Beteiligten der Bezeichnung aus dem FormEditor entspricht.
+    const dinoMapping = mapToDiNo(formType, data, formSchema);
 
     // DiNo and Email are independent. If both are enabled they run in parallel.
     const tasks: Promise<unknown>[] = [];
 
     if (dispatch.dinoEnabled) {
       tasks.push(Promise.resolve().then(() => {
-        insertSubmission(formType, data, dinoMapping);
+        const submission = insertSubmission(formType, data, dinoMapping);
+        // Hochgeladene Dateien zusammen mit der Submission aufbewahren, damit
+        // DiNo sie beim Pull mitbekommt (rawData.attachments). Bytes liegen
+        // nur kurz in der DB und werden mit der Submission wieder geloescht.
+        if (files.length > 0) {
+          insertSubmissionFiles(
+            submission.id,
+            files.map((f) => ({
+              fieldId: f.fieldname || null,
+              fileName: f.originalname,
+              contentType: f.mimetype || null,
+              sizeBytes: f.size,
+              dataBase64: f.buffer.toString('base64'),
+            })),
+          );
+        }
       }));
     }
 
@@ -97,7 +120,7 @@ router.post('/', upload.array('files'), async (req, res) => {
         const needsPdf = dispatch.attachments.pdf;
         const needsDocx = dispatch.attachments.docx;
         const [pdfBuffer, docxBuffer] = await Promise.all([
-          needsPdf ? generatePdf({ formType, data, primaryColor, formSchema }) : Promise.resolve(Buffer.alloc(0)),
+          needsPdf ? generatePdf({ formType, data, primaryColor, formSchema, dinoEnabled: dispatch.dinoEnabled }) : Promise.resolve(Buffer.alloc(0)),
           needsDocx ? generateDocx({ formType, data, formSchema }) : Promise.resolve(undefined),
         ]);
         await sendEmail({

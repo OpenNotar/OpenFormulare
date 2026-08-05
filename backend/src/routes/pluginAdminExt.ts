@@ -11,7 +11,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 
-import { requireAdminAuth } from '../auth/adminAuth';
+import { requireAdminAuth, requireAdminRole } from '../auth/adminAuth';
 import type { RegisteredPlugin } from '../plugins/registry';
 
 const dispatchers = new Map<string, Router>();
@@ -39,7 +39,8 @@ export function unregisterPluginAdminRoutes(pluginId: string): void {
 
 export function buildPluginAdminExtRouter(): Router {
   const router = Router();
-  router.use(requireAdminAuth);
+  // Plugin-eigene Admin-Routen koennen Einstellungen aendern -> nur Administratoren.
+  router.use(requireAdminAuth, requireAdminRole);
   router.use('/:pluginId/ext', (req: Request, res: Response, next: NextFunction) => {
     const sub = dispatchers.get(req.params.pluginId);
     if (!sub) {

@@ -1456,26 +1456,34 @@ function PersonOverrideEditor({ fieldType, overrides, onChange }: PersonOverride
 
   const noTemplate = sections.every((s) => s.fields.length === 0);
 
-  function setRequired(fieldId: string, required: boolean | null) {
+  // Ein einzelner Schluessel wird gesetzt oder (bei null/'') entfernt; bleibt
+  // fuer das Feld nichts uebrig, verschwindet der ganze Eintrag. So sammeln
+  // sich keine leeren Override-Objekte im Schema an.
+  function patchOverride(fieldId: string, patch: Partial<PersonFieldOverrides[string]>) {
     const next: PersonFieldOverrides = { ...(overrides ?? {}) };
-    if (required === null) {
-      const entry = { ...(next[fieldId] ?? {}) };
-      delete entry.required;
-      if (Object.keys(entry).length === 0) delete next[fieldId];
-      else next[fieldId] = entry;
-    } else {
-      next[fieldId] = { ...(next[fieldId] ?? {}), required };
+    const entry = { ...(next[fieldId] ?? {}) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === undefined || v === '') delete entry[k as keyof typeof entry];
+      else (entry as Record<string, unknown>)[k] = v;
     }
+    if (Object.keys(entry).length === 0) delete next[fieldId];
+    else next[fieldId] = entry;
     onChange(Object.keys(next).length > 0 ? next : undefined);
+  }
+
+  function setRequired(fieldId: string, required: boolean | null) {
+    patchOverride(fieldId, { required: required === null ? undefined : required });
   }
 
   return (
     <div className="border-t border-gray-100 pt-4 space-y-3">
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Pflichtfeld-Übersteuerung</label>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Vorlagenfelder anpassen</label>
         <p className="text-xs text-gray-500 mb-2">
           Die Felder kommen aus der globalen Vorlage. Hier kannst du je Feld festlegen, ob es in
-          diesem Dialog Pflicht ist (Vorlage = Standard, ✓ = Pflicht, ✕ = optional).
+          diesem Dialog Pflicht ist (Vorlage = Standard), es <strong>umbenennen</strong> oder
+          <strong> ausblenden</strong>. Umbenennungen sind übersetzbar und erscheinen im
+          Übersetzungs-Editor.
         </p>
       </div>
 
@@ -1493,16 +1501,21 @@ function PersonOverrideEditor({ fieldType, overrides, onChange }: PersonOverride
             </p>
             <ul className="divide-y divide-gray-200">
               {section.fields.map((tf) => {
-                const override = overrides?.[tf.id]?.required;
+                const entry = overrides?.[tf.id];
+                const override = entry?.required;
+                const hidden = entry?.hidden === true;
                 const templateRequired = !!tf.required;
                 const effective = override === undefined ? templateRequired : override;
                 return (
-                  <li key={tf.id} className="px-3 py-2 flex items-center gap-2">
+                  <li key={tf.id} className="px-3 py-2 space-y-2">
+                    <div className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-800 truncate">{tf.label || tf.id}</p>
+                      <p className={`text-sm truncate ${hidden ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                        {entry?.label || tf.label || tf.id}
+                      </p>
                       <p className="text-xs text-gray-400 font-mono">{tf.id}</p>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className={`flex items-center gap-1 shrink-0 ${hidden ? 'opacity-40 pointer-events-none' : ''}`}>
                       <button
                         type="button"
                         onClick={() => setRequired(tf.id, null)}
@@ -1540,9 +1553,43 @@ function PersonOverrideEditor({ fieldType, overrides, onChange }: PersonOverride
                         Optional
                       </button>
                     </div>
-                    <span className={`text-xs w-3 text-center shrink-0 ${effective ? 'text-red-400' : 'text-gray-300'}`}>
-                      {effective ? '*' : '·'}
+                    <span className={`text-xs w-3 text-center shrink-0 ${effective && !hidden ? 'text-red-400' : 'text-gray-300'}`}>
+                      {hidden ? '·' : (effective ? '*' : '·')}
                     </span>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <input
+                          type="text"
+                          value={entry?.label ?? ''}
+                          onChange={(e) => patchOverride(tf.id, { label: e.target.value })}
+                          disabled={hidden}
+                          placeholder={`Beschriftung übernehmen: „${tf.label || tf.id}"`}
+                          className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
+                        />
+                        <input
+                          type="text"
+                          value={entry?.helpText ?? ''}
+                          onChange={(e) => patchOverride(tf.id, { helpText: e.target.value })}
+                          disabled={hidden}
+                          placeholder={tf.helpText ? `Hilfetext übernehmen: „${tf.helpText}"` : 'Hilfetext (optional)'}
+                          className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => patchOverride(tf.id, { hidden: hidden ? undefined : true })}
+                        className={`text-xs px-2 py-1 rounded border shrink-0 transition-colors ${
+                          hidden
+                            ? 'border-amber-500 text-amber-700 bg-amber-50'
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                        title={hidden ? 'Feld wieder einblenden' : 'Feld in diesem Dialog ausblenden'}
+                      >
+                        {hidden ? 'Ausgeblendet' : 'Ausblenden'}
+                      </button>
+                    </div>
                   </li>
                 );
               })}

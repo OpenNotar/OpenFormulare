@@ -75,4 +75,13 @@ export const SETTING_KEYS = {
   dispatchConfig: 'dispatch_config',
   emailConfig: 'email_config',
   dinoConfig: 'dino_config',
+  // Letzte App-Version, die vom Admin in der Onboarding-Übersicht bestätigt
+  // wurde. Wird mit der aktuell laufenden Version (backend/package.json)
+  // verglichen, um die "Was ist neu?"-Seite zu triggern.
+  appVersionSeen: 'app_version_seen',
+  // Letztes Auto-Sync-Ergebnis (welche Dialoge wurden beim Server-Start
+  // automatisch importiert / aktualisiert). Wird vom Onboarding-Tool im UI
+  // sichtbar gemacht, damit Admins nachvollziehen können, was die Migration
+  // im Hintergrund gemacht hat.
+  lastSeedAutoSync: 'last_seed_auto_sync',
 } as const;

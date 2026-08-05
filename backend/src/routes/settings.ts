@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdminAuth } from '../auth/adminAuth';
+import { requireAdminAuth, requireAdminRole } from '../auth/adminAuth';
 import { encryptString } from '../db/crypto';
 import {
   SETTING_KEYS,
@@ -55,7 +55,8 @@ publicRouter.get('/person-templates', (_req, res) => {
 // sees their own edits but never touches the real DB.
 // ---------------------------------------------------------------------------
 
-adminRouter.use(requireAdminAuth);
+// Einstellungen sind Admin-Sache — Moderatoren pflegen nur Dialoge.
+adminRouter.use(requireAdminAuth, requireAdminRole);
 
 function sessionId(req: import('express').Request): string | undefined {
   return req.demoSessionId;

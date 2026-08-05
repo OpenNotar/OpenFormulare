@@ -17,9 +17,12 @@ import ratingRouter from './routes/rating';
 import adminRatingRouter from './routes/adminRating';
 import { adminRouter as settingsAdminRouter, publicRouter as settingsPublicRouter } from './routes/settings';
 import translationsRouter from './routes/translations';
+import onboardingRouter from './routes/onboarding';
+import adminUsersRouter from './routes/adminUsers';
 import { demoSession } from './middleware/demoSession';
 import { isDemoMode, isDinoEnabled, isEmailEnabled } from './services/runtimeMode';
 import { loadPlugins } from './plugins/loader';
+import { ensureInitialAdminUser } from './db/adminUsers';
 
 const app = express();
 const port = parseInt(process.env.PORT || '3001', 10);
@@ -42,6 +45,8 @@ app.use('/api/admin/settings', settingsAdminRouter);
 app.use('/api/admin/rating', adminRatingRouter);
 app.use('/api/admin/plugins', adminPluginsRouter);
 app.use('/api/admin/translations', translationsRouter);
+app.use('/api/admin/onboarding', onboardingRouter);
+app.use('/api/admin/users', adminUsersRouter);
 app.use('/api/dialogs', dialogsRouter);
 app.use('/api/settings', settingsPublicRouter);
 app.use('/api/submit', submitRouter);
@@ -77,6 +82,15 @@ if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
 // Load plugins, then mount their public routes (under /api/plugins/<id>) and
 // start the HTTP listener. Plugin loading is async because activation hooks
 // may perform IO (e.g. open a CalDAV session).
+// Initialen Admin-Benutzer aus ADMIN_USERNAME/ADMIN_PASSWORD anlegen, falls
+// noch gar keiner existiert. Danach ist ausschliesslich die Tabelle
+// `admin_users` maßgeblich — die .env-Werte werden nicht mehr ausgewertet.
+try {
+  ensureInitialAdminUser();
+} catch (err) {
+  console.warn('[auth] Initialer Benutzer konnte nicht angelegt werden:', err);
+}
+
 loadPlugins()
   .catch((err) => console.warn('[plugins] loadPlugins failed:', err))
   .finally(() => {

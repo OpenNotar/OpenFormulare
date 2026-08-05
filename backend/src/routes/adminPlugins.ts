@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 
-import { requireAdminAuth } from '../auth/adminAuth';
+import { requireAdminAuth, requireAdminRole } from '../auth/adminAuth';
 import {
   activatePlugin,
   deactivatePlugin,
@@ -21,7 +21,8 @@ import {
 
 const router = Router();
 
-router.use(requireAdminAuth);
+// Plugins greifen tief in die Instanz ein -> nur Administratoren.
+router.use(requireAdminAuth, requireAdminRole);
 
 router.get('/', (_req, res) => {
   res.json(

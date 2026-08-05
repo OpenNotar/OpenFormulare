@@ -158,7 +158,15 @@ export type PersonTemplateMode = 'natural' | 'legal' | 'both';
 // the global person template. Currently only `required` can be overridden,
 // so the dialog can change which fields are mandatory without forking the
 // whole template.
-export type PersonFieldOverrides = Record<string, { required?: boolean }>;
+export type PersonFieldOverrides = Record<string, {
+  required?: boolean;
+  /** Ersetzt die Beschriftung des Vorlagenfeldes in diesem Dialog. */
+  label?: string;
+  /** Ersetzt den Hilfetext des Vorlagenfeldes in diesem Dialog. */
+  helpText?: string;
+  /** Blendet das Vorlagenfeld in diesem Dialog aus. */
+  hidden?: boolean;
+}>;
 
 // ---------------------------------------------------------------------------
 // Embed field – pulls another dialog's steps into the current one.
@@ -274,16 +282,21 @@ export interface CalculationField extends BaseField {
 export interface PersonField extends BaseField {
   type: 'person';
   fieldOverrides?: PersonFieldOverrides;
+  // Zusätzliche dialog-spezifische Felder nach dem Personen-Template
+  // (gespeichert unter dem gleichen Daten-Objekt wie die Template-Felder).
+  extraFields?: FormField[];
 }
 
 export interface NaturalPersonField extends BaseField {
   type: 'natural-person';
   fieldOverrides?: PersonFieldOverrides;
+  extraFields?: FormField[];
 }
 
 export interface LegalPersonField extends BaseField {
   type: 'legal-person';
   fieldOverrides?: PersonFieldOverrides;
+  extraFields?: FormField[];
 }
 
 // Bewertungs-Felder.

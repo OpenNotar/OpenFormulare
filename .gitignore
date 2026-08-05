@@ -60,3 +60,13 @@ backend/data/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+# Lokale Editor- und Werkzeug-Arbeitsdateien
+.idea/
+.vscode/
+**/__pycache__/
+
+# Lokal erzeugte Einreichungs-Exporte (enthalten echte Mandantendaten).
+# Nur im Repo-Wurzelverzeichnis — docs/*.pdf bleibt versioniert.
+/*.pdf
+/*.docx

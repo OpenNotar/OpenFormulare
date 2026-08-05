@@ -1,0 +1,98 @@
+{
+  "versions": [
+    {
+      "version": "1.1.2",
+      "date": "2026-08-05",
+      "title": "Benutzerverwaltung, DiNo-Import für eigene Dialoge",
+      "highlights": [
+        {
+          "title": "Benutzerverwaltung mit Rollen",
+          "body": "Der Admin-Bereich kennt jetzt mehrere Benutzer. „Administrator“ darf alles, „Moderator“ darf Dialoge und Übersetzungen pflegen, aber keine Einstellungen ändern. Verwaltung unter „Benutzer“: Konten anlegen, umbenennen, Rolle wechseln, Passwort setzen, deaktivieren oder löschen."
+        },
+        {
+          "title": "Eigene Zugangsdaten frei änderbar",
+          "body": "Benutzername und Passwort des initialen Kontos lassen sich unter „Benutzer → Mein Konto“ ändern. Die Werte aus der Umgebung (ADMIN_USERNAME / ADMIN_PASSWORD) legen nur noch beim allerersten Start das erste Konto an und werden danach ignoriert — die generierten init-Zugangsdaten muss sich also niemand mehr merken. Falls doch einmal niemand hineinkommt, hilft auf dem Server „npm run admin:reset“."
+        },
+        {
+          "title": "Beteiligte aus eigenen Dialogen kommen in DiNo an",
+          "body": "Repeater mit Beteiligten (z. B. „Veräußerer“) wurden bei der Übergabe an DiNo übersprungen — sichtbar war nur die Anzahl, die Personen fehlten. Betroffen waren selbst angelegte wie auch die Standard-Dialoge. Die Erkennung arbeitet jetzt dialog-unabhängig und akzeptiert beide Datenformen; die Rolle der Beteiligten übernimmt die im Formular-Editor vergebene Bezeichnung."
+        },
+        {
+          "title": "Mehr Daten für den DiNo-Import",
+          "body": "Zusätzlich übermittelt werden Flurstücke (Flur, Flurstück, Größe) zum Grundbuchblatt, der Terminwunsch, die Vorgangsbeschreibung, die Nachricht des Mandanten sowie hochgeladene Dateien als Dokumente. Neu ist außerdem eine Dialogliste, mit der DiNo pro Dialog eine eigene Import-Konfiguration pflegen kann."
+        },
+        {
+          "title": "Dialoge neu einspielen ohne Datenverlust",
+          "body": "„npm run seed:dialogs --force“ hat abgebrochen, wenn ein Default-Dialog falsch markiert war, und hätte dabei eigene Dialoge löschen können. Der Befehl arbeitet jetzt über die Dialog-Liste des Seeds: getroffen wird ausschließlich, was auch im Seed steht — eigene Dialoge bleiben in jedem Fall erhalten."
+        },
+        {
+          "title": "Größere Datei-Uploads",
+          "body": "Pro Datei sind jetzt 20 MB statt 10 MB möglich, bei maximal 20 Dateien je Einreichung."
+        },
+        {
+          "title": "Wirklich alle Beteiligten erreichen DiNo",
+          "body": "Beteiligte wurden auch dann noch übersprungen, wenn sie nicht auf der obersten Ebene eines Repeaters standen. Fehlten dadurch: Personen aus verschachtelten Repeatern (im Erbschein das Kind eines Kindes) und Personen, die im Dialog als einzelne Felder erfasst sind statt über einen Personen-Block — etwa die verstorbene Person im Erbschein und in der Erbauseinandersetzung oder Vater und Mutter in der Adoption. Die Erkennung arbeitet jetzt über beliebig viele Ebenen und erkennt Personen unabhängig davon, wie der Dialog sie modelliert. Zusätzlich wird der Ansprechpartner aus „Kontakt & Termin“ immer als Beteiligter übermittelt; ist er zugleich als Beteiligter erfasst, werden dort nur seine Kontaktdaten ergänzt statt ein Doppeleintrag angelegt. Leere Repeater-Zeilen erzeugen keine namenlosen Beteiligten mehr."
+        },
+        {
+          "title": "Rolle der Beteiligten als Hinweisfeld",
+          "body": "Die Rolle wird zusätzlich als „idLegalClientRole_hint“ übermittelt — nach derselben Konvention wie Anrede, Rechtsform und Personentyp. Damit ist erkennbar, dass es sich um vom Notar frei vergebenen Text handelt, der in DiNo einer internen Rolle zugeordnet werden muss. Das bisherige Feld bleibt inhaltsgleich erhalten."
+        },
+        {
+          "title": "Standard-Dialoge nutzen die Personen-Vorlage",
+          "body": "Wo Personen bisher als einzelne Felder modelliert waren, verwenden Erbschein, Erbauseinandersetzung und Adoption jetzt den zentralen Personen-Block — ebenso die Ehegatten und die Enkelkinder im Erbschein. Formular, PDF und DOCX sehen unverändert aus. Selbst angelegte und selbst bearbeitete Dialoge bleiben unberührt; beide Formen werden weiterhin erkannt."
+        },
+        {
+          "title": "Vorlagenfelder je Dialog anpassbar",
+          "body": "Felder aus der Personen-Vorlage lassen sich im Formular-Editor pro Dialog umbenennen, mit einem eigenen Hilfetext versehen oder ausblenden — bisher war nur die Pflichtfeld-Angabe übersteuerbar. So heißt die Anschrift der verstorbenen Person weiterhin „Letzter gewöhnlicher Aufenthalt“, während E-Mail und Telefon dort gar nicht erscheinen. Umbenennungen und Hilfetexte sind übersetzbar und tauchen im Übersetzungs-Editor auf."
+        },
+        {
+          "title": "Passwortwechsel meldet nicht mehr ab",
+          "body": "Nach dem Ändern des eigenen Passworts erschien eine Fehlermeldung und beim nächsten Laden der Seite war man abgemeldet. Jetzt bleibt die Sitzung bestehen und der Erfolg wird bestätigt; andere Sitzungen des Kontos werden abgemeldet. Läuft eine Sitzung tatsächlich ab, führt das zur Anmeldeseite mit einem entsprechenden Hinweis, statt eine irreführende Meldung im Formular anzuzeigen."
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-06-02",
+      "title": "Mehrsprachigkeit, Branding & Dialog-Verbesserungen",
+      "highlights": [
+        {
+          "title": "Mehrsprachige Dialoge",
+          "body": "Pro Dialog können zusätzliche Sprachen aktiviert werden (Englisch, Französisch, Spanisch, Polnisch, Arabisch mit RTL-Support, Russisch). Übersetzungen werden separat vom Dialog-Schema gepflegt – PDF und DOCX bleiben weiterhin auf Deutsch. Die Basis-Dialoge sind bereits ins Englische übersetzt."
+        },
+        {
+          "title": "Plugin-System",
+          "body": "OpenFormulare ist jetzt um eigene Plugins erweiterbar. Plugins können neue Feldtypen beitragen, eigene Admin-UI-Erweiterungen einbinden und öffentliche API-Endpunkte bereitstellen. Verwaltung im Admin-Bereich unter „Plugins“."
+        },
+        {
+          "title": "Standard-Plugin: Terminfindung",
+          "body": "Ein integriertes Termin-Plugin liefert frei wählbare Slots an die Dialoge (z. B. für den Kontakt-Step). Notare können konfigurierte Terminarten mit Dauer und Kalender hinterlegen; Mandanten wählen einen freien Slot direkt im Formular."
+        },
+        {
+          "title": "Dialog-Icons auf der Übersichtsseite",
+          "body": "Den Kacheln der Dialoge können nun Icons zugewiesen werden. Die 15 Basis-Dialoge haben passende Icons hinterlegt; insgesamt stehen 40+ Icons im Notariats-Stil zur Auswahl (z. B. Grundbuch, Vollmacht, Familie, Verein)."
+        },
+        {
+          "title": "Personen-Daten in PDF und DOCX",
+          "body": "Repeater-Felder mit Personen (Käufer, Verkäufer, Gesellschafter, …) zeigen jetzt im PDF und DOCX alle erfassten Daten der einzelnen Personen – nicht mehr nur die Anzahl."
+        },
+        {
+          "title": "Ehevertrag & Scheidungsvereinbarung neu strukturiert",
+          "body": "Die früheren P1/P2-Einzelfelder wurden in saubere Personen-Blöcke „Erste Person“ und „Zweite Person“ überführt — basierend auf dem globalen Personen-Template (mit dialog-spezifischen Extras wie Beruf, Nettoeinkommen, Dolmetscher). Beide Personen erscheinen damit konsistent in PDF, DOCX, JSON und werden korrekt an DiNo übermittelt (vorher kam nur die erste Person an)."
+        },
+        {
+          "title": "DiNo-Hinweis auf der PDF",
+          "body": "Wenn DiNo aktiv ist, weist die PDF jetzt im Kopfbereich darauf hin, dass der Vorgang importbereit in der DiNo-Instanz unter „Dialogeingang / Importbereich“ liegt."
+        },
+        {
+          "title": "Branding-Konfiguration",
+          "body": "Primärfarbe greift jetzt zuverlässig überall. Der Header-Text der Übersichtsseite ist im Admin frei editierbar (für den Notar-Namen). Der Admin-Button kann optional ausgeblendet werden."
+        },
+        {
+          "title": "Dialog-Route ändern ohne Fehler",
+          "body": "Beim Umbenennen einer Dialog-Route trat bisher ein FOREIGN-KEY-Fehler auf. Behoben – Übersetzungen und Versionshistorie wandern jetzt korrekt mit."
+        }
+      ]
+    }
+  ]
+}

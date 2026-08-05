@@ -3,9 +3,11 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   cleanupExpiredSubmissions,
   deleteSubmission,
+  getSubmissionFiles,
   listPendingSubmissions,
   markPulled,
 } from '../db/submissions';
+import { listDialogs } from '../db/database';
 import { buildPayload } from '../services/dinoPayload';
 import { isDemoMode, getDinoConfig } from '../services/runtimeMode';
 
@@ -55,9 +57,25 @@ router.get('/submissions', (_req, res) => {
     }
   }
 
-  const result = submissions.map((s) =>
-    buildPayload(s.id, s.formType, s.submittedAt, s.pulledAt, s.data, s.dinoMapping),
-  );
+  const result = submissions.map((s) => {
+    // Hochgeladene Dateien als Base64-Attachments mitschicken — DiNo legt sie
+    // beim Import als "Bereitgestellte Daten" an der Relationship an.
+    const attachments = getSubmissionFiles(s.id).map((f) => ({
+      relPath: f.fieldId ? `${f.fieldId}/${f.fileName}` : f.fileName,
+      fileName: f.fileName,
+      contentType: f.contentType,
+      dataBase64: f.dataBase64,
+    }));
+    return buildPayload(
+      s.id,
+      s.formType,
+      s.submittedAt,
+      s.pulledAt,
+      s.data,
+      s.dinoMapping,
+      attachments,
+    );
+  });
 
   res.json({ count: result.length, submissions: result });
 });
@@ -74,6 +92,24 @@ router.delete('/submissions/:id', (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// GET /api/dino/forms
+// Liste aller Dialoge der OF-Instanz — DiNo nutzt das, um in den
+// Einstellungen einen Konfigurations-Eintrag pro Dialog zu pflegen
+// (Vorgangsart, Notar, MA, Auto-Import).
+router.get('/forms', (_req, res) => {
+  const dialogs = listDialogs();
+  const result = dialogs.map((d) => ({
+    id: d.id,
+    title: d.title ?? d.id,
+    description: d.description ?? '',
+    category: d.category ?? 'Allgemein',
+    isActive: !!d.isActive,
+    isSystem: !!d.isSystem,
+    updatedAt: d.updatedAt,
+  }));
+  res.json({ count: result.length, forms: result });
 });
 
 export default router;

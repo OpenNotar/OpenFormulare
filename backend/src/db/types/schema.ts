@@ -118,7 +118,15 @@ export interface FileField extends BaseField {
 
 export type PersonTemplateMode = 'natural' | 'legal' | 'both';
 
-export type PersonFieldOverrides = Record<string, { required?: boolean }>;
+export type PersonFieldOverrides = Record<string, {
+  required?: boolean;
+  /** Ersetzt die Beschriftung des Vorlagenfeldes in diesem Dialog. */
+  label?: string;
+  /** Ersetzt den Hilfetext des Vorlagenfeldes in diesem Dialog. */
+  helpText?: string;
+  /** Blendet das Vorlagenfeld in diesem Dialog aus. */
+  hidden?: boolean;
+}>;
 
 export interface EmbedField extends BaseField {
   type: 'embed';
@@ -205,16 +213,22 @@ export interface YesNoField extends BaseField {
 export interface PersonField extends BaseField {
   type: 'person';
   fieldOverrides?: PersonFieldOverrides;
+  // Zusätzliche Felder, die nach dem Personen-Template angezeigt werden
+  // (z. B. dialog-spezifisch „Beruf", „Nettoeinkommen"). Werden im selben
+  // Datenobjekt wie die Template-Felder gespeichert (data.<id>.<extraId>).
+  extraFields?: FormField[];
 }
 
 export interface NaturalPersonField extends BaseField {
   type: 'natural-person';
   fieldOverrides?: PersonFieldOverrides;
+  extraFields?: FormField[];
 }
 
 export interface LegalPersonField extends BaseField {
   type: 'legal-person';
   fieldOverrides?: PersonFieldOverrides;
+  extraFields?: FormField[];
 }
 
 export type FormField =

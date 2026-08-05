@@ -1,14 +1,23 @@
 import puppeteer from 'puppeteer';
 import { registry as pluginRegistry } from '../plugins/registry';
+import { getActivePersonTemplates, resolveRepeaterInnerFields, resolvePersonFieldInnerFields } from '../db/sharedSteps';
+import type { FormField } from '../db/types/schema';
 
 // Minimal schema types (mirrors frontend types/schema.ts)
 interface SchemaField {
   id: string;
   label: string;
   type: string;
-  fields?: SchemaField[];     // repeater sub-fields
+  fields?: SchemaField[];     // repeater sub-fields (legacy)
   countField?: string;        // repeater count reference
+  // Modern repeater: references the global person template + per-dialog
+  // required overrides + extra dialog-specific fields. Resolved per item
+  // via resolveRepeaterInnerFields().
+  personTemplate?: 'natural' | 'legal' | 'both';
+  extraFields?: SchemaField[];
+  fieldOverrides?: Record<string, { required?: boolean }>;
   condition?: { fieldId: string; operator: string; value: unknown };
+  options?: unknown;
   // Rating-spezifisch
   maxStars?: number;
   min?: number;
@@ -24,6 +33,9 @@ interface PdfOptions {
   data: Record<string, unknown>;
   primaryColor: string;
   formSchema?: FormSchema;
+  // Wenn aktiv, wird im PDF-Header ein Hinweis eingeblendet, dass der
+  // Vorgang importbereit in der DiNo-Instanz steht.
+  dinoEnabled?: boolean;
 }
 
 const FORM_TITLES: Record<string, string> = {
@@ -45,11 +57,11 @@ const FORM_TITLES: Record<string, string> = {
   adoption: 'Adoption',
 };
 
-export async function generatePdf({ formType, data, primaryColor, formSchema }: PdfOptions): Promise<Buffer> {
+export async function generatePdf({ formType, data, primaryColor, formSchema, dinoEnabled }: PdfOptions): Promise<Buffer> {
   const title = formSchema?.title ?? FORM_TITLES[formType] ?? formType;
   const html = formSchema
-    ? buildHtmlFromSchema(formSchema, data, primaryColor, title)
-    : buildHtmlFallback(title, data, primaryColor);
+    ? buildHtmlFromSchema(formSchema, data, primaryColor, title, dinoEnabled)
+    : buildHtmlFallback(title, data, primaryColor, dinoEnabled);
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -77,11 +89,11 @@ export async function generatePdf({ formType, data, primaryColor, formSchema }: 
 // Schema-based renderer — uses field labels and step structure
 // ---------------------------------------------------------------------------
 
-function buildHtmlFromSchema(schema: FormSchema, data: Record<string, unknown>, primaryColor: string, title: string): string {
+function buildHtmlFromSchema(schema: FormSchema, data: Record<string, unknown>, primaryColor: string, title: string, dinoEnabled?: boolean): string {
   const now = timestamp();
   const body = schema.steps.map((step) => renderStep(step, data, primaryColor)).join('');
 
-  return htmlWrapper(title, now, primaryColor, body);
+  return htmlWrapper(title, now, primaryColor, body, dinoEnabled);
 }
 
 function renderStep(step: SchemaStep, data: Record<string, unknown>, primaryColor: string): string {
@@ -112,6 +124,10 @@ function renderField(field: SchemaField, data: Record<string, unknown>, prefix: 
     return renderRepeater(field, data);
   }
 
+  if (field.type === 'natural-person' || field.type === 'legal-person' || field.type === 'person') {
+    return renderPersonField(field, data, prefix);
+  }
+
   if (field.type === 'file') {
     // Files are stripped before sending — just note their presence
     const files = getNestedValue(data, key);
@@ -122,6 +138,18 @@ function renderField(field: SchemaField, data: Record<string, unknown>, prefix: 
 
   const value = getNestedValue(data, key);
   if (isEmpty(value)) return '';
+
+  // Compound Adress-Felder: ohne explizite Formatierung würde `String(obj)`
+  // → "[object Object]" rendern. Wir erkennen Adress-Strukturen am Vorhandensein
+  // typischer Sub-Keys (strasse / plz / ort bzw. geschaeftsanschrift / sitz).
+  if (field.type === 'address' && value && typeof value === 'object') {
+    const formatted = formatAddressObject(value as Record<string, unknown>);
+    return formatted ? row(field.label, formatted) : '';
+  }
+  if (field.type === 'business-address' && value && typeof value === 'object') {
+    const formatted = formatBusinessAddressObject(value as Record<string, unknown>);
+    return formatted ? row(field.label, formatted) : '';
+  }
 
   if (field.type === 'checkbox') {
     return row(field.label, value ? 'Ja ✓' : '');
@@ -165,16 +193,51 @@ function renderField(field: SchemaField, data: Record<string, unknown>, prefix: 
   return row(field.label, String(value));
 }
 
+function renderPersonField(field: SchemaField, data: Record<string, unknown>, prefix: string): string {
+  const key = prefix ? `${prefix}.${field.id}` : field.id;
+  const item = getNestedValue(data, key);
+  if (!item || typeof item !== 'object') return '';
+  const innerFields = resolvePersonFieldInnerFields(
+    field as unknown as FormField & { type: 'natural-person' | 'legal-person' | 'person' },
+    item as Record<string, unknown>,
+  );
+  const rows = innerFields
+    .map((sub) => renderField(sub as unknown as SchemaField, item as Record<string, unknown>, ''))
+    .filter(Boolean)
+    .join('');
+  if (!rows) return '';
+  return `<div class="repeater-card">
+  <div class="repeater-title">${esc(field.label)}</div>
+  ${rows}
+</div>`;
+}
+
 function renderRepeater(field: SchemaField, data: Record<string, unknown>): string {
   const items = getRepeaterItems(data, field.id, field.countField ? String(data[field.countField] ?? 4) : '4');
   if (items.length === 0) return '';
 
+  // Resolve once per item (the inner field set may differ between items in
+  // 'both' mode, depending on the chosen Personentyp).
+  const templates = getActivePersonTemplates();
+
   const cards = items.map((item, i) => {
-    const subRows = (field.fields ?? [])
-      .map((subField) => renderField(subField, item, ''))
+    const innerFields = resolveRepeaterInnerFields(
+      field as unknown as FormField & { type: 'repeater' },
+      item,
+      templates,
+    );
+    const subRows = innerFields
+      .map((subField) => renderField(subField as unknown as SchemaField, item, ''))
       .filter(Boolean)
       .join('');
-    if (!subRows) return '';
+    if (!subRows) {
+      // Item has no usable data — fall back to a minimal stub so the
+      // notar still sees the slot's existence (e.g. "Käufer 3 — leer").
+      return `<div class="repeater-card">
+  <div class="repeater-title">${esc(field.label)} ${i + 1}</div>
+  <div class="row"><span class="label">—</span><span class="value">(keine Angaben)</span></div>
+</div>`;
+    }
     return `<div class="repeater-card">
   <div class="repeater-title">${esc(field.label)} ${i + 1}</div>
   ${subRows}
@@ -198,6 +261,39 @@ function getRepeaterItems(data: Record<string, unknown>, key: string, countStr: 
   return items;
 }
 
+// Wandelt ein Adress-Objekt (wie es das address-Feld erzeugt) in eine ein-
+// zeilige Anschrift um. Leere Felder werden ausgelassen, `land` nur wenn es
+// vom Default abweicht.
+function formatAddressObject(obj: Record<string, unknown>): string {
+  const strasse = (obj.strasse as string) || '';
+  const hausnummer = (obj.hausnummer as string) || '';
+  const plz = (obj.plz as string) || '';
+  const ort = (obj.ort as string) || '';
+  const land = (obj.land as string) || '';
+  const parts = [
+    [strasse, hausnummer].filter(Boolean).join(' '),
+    [plz, ort].filter(Boolean).join(' '),
+    land && land !== 'Deutschland' ? land : '',
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
+// Business-Address: Geschäftsanschrift + Sitz. Wenn `gleich`, nur einmal.
+function formatBusinessAddressObject(obj: Record<string, unknown>): string {
+  const ga = obj.geschaeftsanschrift && typeof obj.geschaeftsanschrift === 'object'
+    ? formatAddressObject(obj.geschaeftsanschrift as Record<string, unknown>)
+    : '';
+  const same = obj.gleich === true;
+  if (same) return ga ? `Geschäftsanschrift & Sitz: ${ga}` : '';
+  const sitz = obj.sitz && typeof obj.sitz === 'object'
+    ? formatAddressObject(obj.sitz as Record<string, unknown>)
+    : '';
+  const bits: string[] = [];
+  if (ga) bits.push(`Geschäftsanschrift: ${ga}`);
+  if (sitz) bits.push(`Sitz: ${sitz}`);
+  return bits.join(' | ');
+}
+
 function getNestedValue(data: Record<string, unknown>, path: string): unknown {
   return path.split('.').reduce<unknown>((obj, key) => {
     if (obj && typeof obj === 'object') return (obj as Record<string, unknown>)[key];
@@ -219,7 +315,7 @@ function conditionMet(actual: unknown, operator: string, expected: unknown): boo
 // Fallback renderer — for submissions without schema (backward compat)
 // ---------------------------------------------------------------------------
 
-function buildHtmlFallback(title: string, data: Record<string, unknown>, primaryColor: string): string {
+function buildHtmlFallback(title: string, data: Record<string, unknown>, primaryColor: string, dinoEnabled?: boolean): string {
   const now = timestamp();
   let content = '<div class="section"><div class="section-title">Angaben</div>';
 
@@ -244,14 +340,20 @@ function buildHtmlFallback(title: string, data: Record<string, unknown>, primary
   }
   content += '</div>';
 
-  return htmlWrapper(title, now, primaryColor, content);
+  return htmlWrapper(title, now, primaryColor, content, dinoEnabled);
 }
 
 // ---------------------------------------------------------------------------
 // HTML helpers
 // ---------------------------------------------------------------------------
 
-function htmlWrapper(title: string, now: string, primaryColor: string, body: string): string {
+function htmlWrapper(title: string, now: string, primaryColor: string, body: string, dinoEnabled?: boolean): string {
+  const dinoNotice = dinoEnabled
+    ? `<div class="dino-notice">
+        <strong>DiNo:</strong> Dieser Vorgang ist importbereit in Ihrer DiNo-Instanz.
+        Sie finden ihn im Menü unter <em>Dialogeingang</em> / <em>Importbereich</em>.
+       </div>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -259,10 +361,16 @@ function htmlWrapper(title: string, now: string, primaryColor: string, body: str
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; }
-  .header { background: #${primaryColor}; color: #fff; padding: 20px 24px; margin-bottom: 28px; }
+  .header { background: #${primaryColor}; color: #fff; padding: 20px 24px; margin-bottom: 0; }
   .header h1 { font-size: 18px; font-weight: bold; }
   .header p  { margin-top: 4px; font-size: 11px; opacity: 0.8; }
-  .content   { padding: 0 24px; }
+  .dino-notice {
+    background: #f0f7ff; border-left: 3px solid #${primaryColor};
+    padding: 10px 16px; margin: 0 24px 22px 24px; font-size: 10.5px; color: #1f2a37;
+  }
+  .dino-notice strong { color: #${primaryColor}; }
+  .dino-notice em     { font-style: normal; font-weight: 600; }
+  .content   { padding: 0 24px; margin-top: 28px; }
   .section   { margin-bottom: 22px; }
   .section-title {
     font-size: 11px; font-weight: bold; text-transform: uppercase;
@@ -293,6 +401,7 @@ function htmlWrapper(title: string, now: string, primaryColor: string, body: str
   <h1>${esc(title)}</h1>
   <p>Eingereicht am ${now}</p>
 </div>
+${dinoNotice}
 <div class="content">${body}</div>
 <div class="footer">Dieses Dokument wurde automatisch generiert</div>
 </body>

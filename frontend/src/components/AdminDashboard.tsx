@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getOnboardingStatus, type OnboardingStatus } from '../lib/onboardingApi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
-import { adminLogout, getAdminUsername } from '../lib/adminAuth';
+import { adminLogout, getAdminUsername, isAdminRole } from '../lib/adminAuth';
 import { getCachedRuntimeMode } from '../lib/runtimeMode';
 import {
   exportAllDialogs,
@@ -22,7 +23,26 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const adminUsername = getAdminUsername();
+  // Moderatoren pflegen nur Dialoge — Einstellungen, Plugins und die
+  // Update-Übersicht werden ihnen serverseitig verweigert, also gar nicht erst
+  // angeboten.
+  const isAdmin = isAdminRole();
   const isDemo = getCachedRuntimeMode()?.demoMode === true;
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    getOnboardingStatus()
+      .then((s) => { if (!cancelled) setOnboarding(s); })
+      .catch(() => { /* still navigate to dashboard if onboarding API errors */ });
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  const showOnboardingBanner = !!onboarding && (
+    onboarding.hasNewVersion
+    || onboarding.seedChanges.some((c) => c.status === 'new' || c.status === 'changed')
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -138,13 +158,23 @@ export function AdminDashboard() {
             <h1 className="text-2xl font-semibold">Dialog-Verwaltung</h1>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-300">{isDemo ? 'Demo-Sitzung' : (adminUsername || 'Angemeldet')}</span>
-            <Link to="/admin/settings" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
-              Einstellungen
+            <span className="text-slate-300">
+              {isDemo ? 'Demo-Sitzung' : (adminUsername || 'Angemeldet')}
+              {!isDemo && !isAdmin && <span className="text-slate-500"> · Moderator</span>}
+            </span>
+            <Link to="/admin/users" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
+              {isAdmin ? 'Benutzer' : 'Mein Konto'}
             </Link>
-            <Link to="/admin/plugins" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
-              Plugins
-            </Link>
+            {isAdmin && (
+              <>
+                <Link to="/admin/settings" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
+                  Einstellungen
+                </Link>
+                <Link to="/admin/plugins" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
+                  Plugins
+                </Link>
+              </>
+            )}
             <Link to="/" className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors">
               Öffentliche Ansicht
             </Link>
@@ -158,6 +188,33 @@ export function AdminDashboard() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {showOnboardingBanner && onboarding && (
+          <div className="mb-6 p-4 bg-primary/5 border border-primary/30 rounded-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="text-xl">✨</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">
+                  Version {onboarding.currentVersion} ist installiert
+                  {onboarding.seenVersion !== '0.0.0' && (
+                    <span className="text-gray-500 font-normal"> (zuletzt gesehen: v{onboarding.seenVersion})</span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {onboarding.releaseNotes.length > 0 && 'Es gibt Neuerungen, '}
+                  {onboarding.seedChanges.filter((c) => c.status === 'new').length > 0 && `${onboarding.seedChanges.filter((c) => c.status === 'new').length} neue Seed-Dialoge, `}
+                  {onboarding.seedChanges.filter((c) => c.status === 'changed').length > 0 && `${onboarding.seedChanges.filter((c) => c.status === 'changed').length} aktualisierte Dialoge`}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/admin/onboarding"
+              className="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-dark rounded-md transition-colors text-center"
+            >
+              Update-Übersicht ansehen
+            </Link>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 mb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <input

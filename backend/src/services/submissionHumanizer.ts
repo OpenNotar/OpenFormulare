@@ -6,8 +6,9 @@
 // separat. So bekommen Empfänger des JSON-Anhangs (und der Debug-Dumps)
 // eine klare textuelle Sicht statt eines Roh-Payloads.
 
-import type { FormSchema } from '../db/types/schema';
+import type { FormSchema, FormField } from '../db/types/schema';
 import { registry as pluginRegistry } from '../plugins/registry';
+import { getActivePersonTemplates, resolveRepeaterInnerFields, resolvePersonFieldInnerFields } from '../db/sharedSteps';
 
 // Eingebaute Feld-Typen, die wir NICHT humanisieren — die kennen das Core und
 // rendern sie an anderer Stelle bereits passend (z. B. PDF/DOCX-Renderer).
@@ -27,15 +28,35 @@ interface SchemaField {
   label?: string;
   type: string;
   fields?: SchemaField[];
+  personTemplate?: 'natural' | 'legal' | 'both';
+  extraFields?: SchemaField[];
+  fieldOverrides?: Record<string, { required?: boolean }>;
 }
 
 function humanizeField(
   field: SchemaField,
   source: Record<string, unknown>,
   target: Record<string, unknown>,
+  templates: { natural: FormField[]; legal: FormField[] },
 ): void {
   const value = source[field.id];
   if (value === undefined) return;
+
+  if ((field.type === 'natural-person' || field.type === 'legal-person' || field.type === 'person')
+      && value && typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    const innerFields = resolvePersonFieldInnerFields(
+      field as unknown as FormField & { type: 'natural-person' | 'legal-person' | 'person' },
+      item,
+      templates,
+    ) as unknown as SchemaField[];
+    const innerTarget: Record<string, unknown> = {};
+    for (const sub of innerFields) {
+      humanizeField(sub, item, innerTarget, templates);
+    }
+    target[field.id] = innerTarget;
+    return;
+  }
 
   if (field.type === 'repeater' && value && typeof value === 'object') {
     // Repeater speichert die Einträge als numerisch-indizierte Objekt-Keys.
@@ -44,8 +65,13 @@ function humanizeField(
     for (const [k, item] of Object.entries(entries)) {
       if (item && typeof item === 'object') {
         const innerTarget: Record<string, unknown> = {};
-        for (const sub of field.fields ?? []) {
-          humanizeField(sub, item as Record<string, unknown>, innerTarget);
+        const innerFields = resolveRepeaterInnerFields(
+          field as unknown as FormField & { type: 'repeater' },
+          item as Record<string, unknown>,
+          templates,
+        ) as unknown as SchemaField[];
+        for (const sub of innerFields) {
+          humanizeField(sub, item as Record<string, unknown>, innerTarget, templates);
         }
         out[k] = innerTarget;
       } else {
@@ -73,10 +99,11 @@ export function humanizeSubmission(
   data: Record<string, unknown>,
   schema: FormSchema,
 ): Record<string, unknown> {
+  const templates = getActivePersonTemplates();
   const out: Record<string, unknown> = { ...data };
   for (const step of schema.steps ?? []) {
     for (const field of step.fields ?? []) {
-      humanizeField(field as SchemaField, data, out);
+      humanizeField(field as SchemaField, data, out, templates);
     }
   }
   return out;

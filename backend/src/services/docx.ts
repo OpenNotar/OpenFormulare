@@ -4,6 +4,8 @@
 
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } from 'docx';
 import { registry as pluginRegistry } from '../plugins/registry';
+import { getActivePersonTemplates, resolveRepeaterInnerFields, resolvePersonFieldInnerFields } from '../db/sharedSteps';
+import type { FormField } from '../db/types/schema';
 
 interface SchemaField {
   id: string;
@@ -11,6 +13,11 @@ interface SchemaField {
   type: string;
   fields?: SchemaField[];
   countField?: string;
+  // Modern repeater contract — see backend/src/services/pdf.ts for details.
+  personTemplate?: 'natural' | 'legal' | 'both';
+  extraFields?: SchemaField[];
+  fieldOverrides?: Record<string, { required?: boolean }>;
+  options?: unknown;
   condition?: { fieldId: string; operator: string; value: unknown };
   // Rating-spezifisch
   maxStars?: number;
@@ -115,6 +122,23 @@ function fieldRow(label: string, value: string): TableRow {
 function renderField(field: SchemaField, data: Record<string, unknown>, rows: TableRow[]) {
   if (field.condition && !evaluateCondition(field.condition, data)) return;
 
+  if (field.type === 'natural-person' || field.type === 'legal-person' || field.type === 'person') {
+    const item = data[field.id];
+    if (!item || typeof item !== 'object') {
+      rows.push(fieldRow(field.label, '–'));
+      return;
+    }
+    rows.push(fieldRow(field.label, ''));
+    const innerFields = resolvePersonFieldInnerFields(
+      field as unknown as FormField & { type: 'natural-person' | 'legal-person' | 'person' },
+      item as Record<string, unknown>,
+    );
+    for (const inner of innerFields) {
+      renderField(inner as unknown as SchemaField, item as Record<string, unknown>, rows);
+    }
+    return;
+  }
+
   if (field.type === 'repeater') {
     const items = (data[field.id] as unknown[] | Record<string, unknown> | undefined);
     let entries: Record<string, unknown>[] = [];
@@ -128,10 +152,16 @@ function renderField(field: SchemaField, data: Record<string, unknown>, rows: Ta
       rows.push(fieldRow(field.label, '–'));
       return;
     }
+    const templates = getActivePersonTemplates();
     entries.forEach((entry, idx) => {
       rows.push(fieldRow(`${field.label} ${idx + 1}`, ''));
-      for (const inner of field.fields ?? []) {
-        renderField(inner, entry, rows);
+      const innerFields = resolveRepeaterInnerFields(
+        field as unknown as FormField & { type: 'repeater' },
+        entry,
+        templates,
+      );
+      for (const inner of innerFields) {
+        renderField(inner as unknown as SchemaField, entry, rows);
       }
     });
     return;

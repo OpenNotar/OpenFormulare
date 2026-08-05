@@ -352,64 +352,38 @@
             "required": false
           },
           {
-            "id": "vater_vorname",
-            "type": "text",
-            "label": "Vorname des Vaters",
-            "required": false,
+            "id": "vater",
+            "type": "natural-person",
+            "label": "Leiblicher Vater",
             "condition": {
               "fieldId": "vater_bekannt",
               "operator": "eq",
               "value": "Ja"
-            }
-          },
-          {
-            "id": "vater_nachname",
-            "type": "text",
-            "label": "Nachname des Vaters",
-            "required": false,
-            "condition": {
-              "fieldId": "vater_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "vater_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum des Vaters",
-            "required": false,
-            "condition": {
-              "fieldId": "vater_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "vater_adresse",
-            "type": "address",
-            "label": "Adresse des Vaters",
-            "required": false,
-            "condition": {
-              "fieldId": "vater_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "vater_lebt",
-            "type": "radio",
-            "label": "Lebt der Vater noch?",
-            "options": [
-              "Ja",
-              "Nein"
-            ],
-            "layout": "horizontal",
-            "required": false,
-            "condition": {
-              "fieldId": "vater_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
+            },
+            "fieldOverrides": {
+              "vorname": {
+                "required": false
+              },
+              "nachname": {
+                "required": false
+              },
+              "adresse": {
+                "required": false
+              }
+            },
+            "extraFields": [
+              {
+                "id": "lebt",
+                "type": "radio",
+                "label": "Lebt der Vater noch?",
+                "options": [
+                  "Ja",
+                  "Nein"
+                ],
+                "layout": "horizontal",
+                "required": false
+              }
+            ]
           },
           {
             "id": "mutter_bekannt",
@@ -423,64 +397,38 @@
             "required": false
           },
           {
-            "id": "mutter_vorname",
-            "type": "text",
-            "label": "Vorname der Mutter",
-            "required": false,
+            "id": "mutter",
+            "type": "natural-person",
+            "label": "Leibliche Mutter",
             "condition": {
               "fieldId": "mutter_bekannt",
               "operator": "eq",
               "value": "Ja"
-            }
-          },
-          {
-            "id": "mutter_nachname",
-            "type": "text",
-            "label": "Nachname der Mutter",
-            "required": false,
-            "condition": {
-              "fieldId": "mutter_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "mutter_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum der Mutter",
-            "required": false,
-            "condition": {
-              "fieldId": "mutter_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "mutter_adresse",
-            "type": "address",
-            "label": "Adresse der Mutter",
-            "required": false,
-            "condition": {
-              "fieldId": "mutter_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
-          },
-          {
-            "id": "mutter_lebt",
-            "type": "radio",
-            "label": "Lebt die Mutter noch?",
-            "options": [
-              "Ja",
-              "Nein"
-            ],
-            "layout": "horizontal",
-            "required": false,
-            "condition": {
-              "fieldId": "mutter_bekannt",
-              "operator": "eq",
-              "value": "Ja"
-            }
+            },
+            "fieldOverrides": {
+              "vorname": {
+                "required": false
+              },
+              "nachname": {
+                "required": false
+              },
+              "adresse": {
+                "required": false
+              }
+            },
+            "extraFields": [
+              {
+                "id": "lebt",
+                "type": "radio",
+                "label": "Lebt die Mutter noch?",
+                "options": [
+                  "Ja",
+                  "Nein"
+                ],
+                "layout": "horizontal",
+                "required": false
+              }
+            ]
           },
           {
             "id": "einwilligung_erteilt",
@@ -1318,87 +1266,63 @@
     "category": "Familie",
     "steps": [
       {
-        "id": "person1",
-        "title": "Person 1",
+        "id": "erste_person",
+        "title": "Erste Person",
         "fields": [
           {
-            "id": "p1_anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
+            "id": "erste_person",
+            "type": "natural-person",
+            "label": "Erste Person",
+            "required": true,
+            "fieldOverrides": {
+              "anrede": {
+                "required": false
+              },
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "geburtsname": {
+                "required": false
+              },
+              "geburtsdatum": {
+                "required": true
+              },
+              "geburtsort": {
+                "required": false
+              },
+              "staatsangehoerigkeit": {
+                "required": false
+              },
+              "adresse": {
+                "required": true
+              }
+            }
           },
           {
-            "id": "p1_vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "p1_nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "p1_geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "p1_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": true
-          },
-          {
-            "id": "p1_geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": false
-          },
-          {
-            "id": "p1_staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit",
-            "required": false,
-            "placeholder": "z.B. deutsch"
-          },
-          {
-            "id": "p1_adresse",
-            "type": "address",
-            "label": "Anschrift",
-            "required": true
-          },
-          {
-            "id": "p1_beruf",
+            "id": "erste_person_beruf",
             "type": "text",
             "label": "Beruf / Tätigkeit",
             "required": false
           },
           {
-            "id": "p1_nettoeinkommen",
+            "id": "erste_person_nettoeinkommen",
             "type": "number",
             "label": "Monatliches Nettoeinkommen (EUR, optional)",
             "required": false
           },
           {
-            "id": "p1_erwartung",
+            "id": "erste_person_erwartung",
             "type": "textarea",
-            "label": "Erwartete Schenkungen / Erbschaften (Person 1, optional)",
+            "label": "Erwartete Schenkungen / Erbschaften (optional)",
             "required": false,
             "rows": 2,
             "placeholder": "Falls bekannt: Art und ungefähre Höhe"
           },
           {
-            "id": "p1_dolmetscher",
+            "id": "erste_person_dolmetscher",
             "type": "radio",
             "label": "Dolmetscher erforderlich?",
             "options": [
@@ -1409,12 +1333,12 @@
             "required": false
           },
           {
-            "id": "p1_dolmetscher_sprache",
+            "id": "erste_person_dolmetscher_sprache",
             "type": "text",
             "label": "Sprache",
             "required": false,
             "condition": {
-              "fieldId": "p1_dolmetscher",
+              "fieldId": "erste_person_dolmetscher",
               "operator": "eq",
               "value": "Ja"
             }
@@ -1422,86 +1346,63 @@
         ]
       },
       {
-        "id": "person2",
-        "title": "Person 2",
+        "id": "zweite_person",
+        "title": "Zweite Person",
         "fields": [
           {
-            "id": "p2_anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
+            "id": "zweite_person",
+            "type": "natural-person",
+            "label": "Zweite Person",
+            "required": true,
+            "fieldOverrides": {
+              "anrede": {
+                "required": false
+              },
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "geburtsname": {
+                "required": false
+              },
+              "geburtsdatum": {
+                "required": true
+              },
+              "geburtsort": {
+                "required": false
+              },
+              "staatsangehoerigkeit": {
+                "required": false
+              },
+              "adresse": {
+                "required": true
+              }
+            }
           },
           {
-            "id": "p2_vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "p2_nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "p2_geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "p2_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": true
-          },
-          {
-            "id": "p2_geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": false
-          },
-          {
-            "id": "p2_staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit",
-            "required": false
-          },
-          {
-            "id": "p2_adresse",
-            "type": "address",
-            "label": "Anschrift",
-            "required": true
-          },
-          {
-            "id": "p2_beruf",
+            "id": "zweite_person_beruf",
             "type": "text",
             "label": "Beruf / Tätigkeit",
             "required": false
           },
           {
-            "id": "p2_nettoeinkommen",
+            "id": "zweite_person_nettoeinkommen",
             "type": "number",
             "label": "Monatliches Nettoeinkommen (EUR, optional)",
             "required": false
           },
           {
-            "id": "p2_erwartung",
+            "id": "zweite_person_erwartung",
             "type": "textarea",
-            "label": "Erwartete Schenkungen / Erbschaften (Person 2, optional)",
+            "label": "Erwartete Schenkungen / Erbschaften (optional)",
             "required": false,
             "rows": 2,
             "placeholder": "Falls bekannt: Art und ungefähre Höhe"
           },
           {
-            "id": "p2_dolmetscher",
+            "id": "zweite_person_dolmetscher",
             "type": "radio",
             "label": "Dolmetscher erforderlich?",
             "options": [
@@ -1512,12 +1413,12 @@
             "required": false
           },
           {
-            "id": "p2_dolmetscher_sprache",
+            "id": "zweite_person_dolmetscher_sprache",
             "type": "text",
             "label": "Sprache",
             "required": false,
             "condition": {
-              "fieldId": "p2_dolmetscher",
+              "fieldId": "zweite_person_dolmetscher",
               "operator": "eq",
               "value": "Ja"
             }
@@ -2003,71 +1904,41 @@
         "title": "Verstorbene Person",
         "fields": [
           {
-            "id": "anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
-          },
-          {
-            "id": "vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": false
-          },
-          {
-            "id": "geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": false
-          },
-          {
-            "id": "staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit",
-            "required": false
-          },
-          {
-            "id": "sterbedatum",
-            "type": "date",
-            "label": "Sterbedatum",
-            "required": true
-          },
-          {
-            "id": "sterbeort",
-            "type": "text",
-            "label": "Sterbeort",
-            "required": false
-          },
-          {
-            "id": "letzter_aufenthalt",
-            "type": "address",
-            "label": "Letzter gewöhnlicher Aufenthalt",
-            "required": true
+            "id": "verstorbene_person",
+            "type": "natural-person",
+            "label": "Verstorbene Person",
+            "fieldOverrides": {
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "adresse": {
+                "label": "Letzter gewöhnlicher Aufenthalt",
+                "required": true
+              },
+              "email": {
+                "hidden": true
+              },
+              "telefon": {
+                "hidden": true
+              }
+            },
+            "extraFields": [
+              {
+                "id": "sterbedatum",
+                "type": "date",
+                "label": "Sterbedatum",
+                "required": true
+              },
+              {
+                "id": "sterbeort",
+                "type": "text",
+                "label": "Sterbeort",
+                "required": false
+              }
+            ]
           },
           {
             "id": "nachlassgericht",
@@ -2691,72 +2562,52 @@
         "title": "Verstorbene Person",
         "fields": [
           {
-            "id": "anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
-          },
-          {
-            "id": "vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": true
-          },
-          {
-            "id": "geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": true
-          },
-          {
-            "id": "letzter_aufenthalt",
-            "type": "address",
-            "label": "Letzter gewöhnlicher Aufenthalt",
-            "required": true,
-            "helpText": "Dieser kann auch von der Meldeanschrift abweichen."
-          },
-          {
-            "id": "staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit(en)",
-            "required": true
-          },
-          {
-            "id": "sterbedatum",
-            "type": "date",
-            "label": "Sterbedatum",
-            "required": true
-          },
-          {
-            "id": "sterbeort",
-            "type": "text",
-            "label": "Sterbeort",
-            "required": true
+            "id": "verstorbene_person",
+            "type": "natural-person",
+            "label": "Verstorbene Person",
+            "fieldOverrides": {
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "geburtsdatum": {
+                "required": true
+              },
+              "geburtsort": {
+                "required": true
+              },
+              "staatsangehoerigkeit": {
+                "label": "Staatsangehörigkeit(en)",
+                "required": true
+              },
+              "adresse": {
+                "label": "Letzter gewöhnlicher Aufenthalt",
+                "helpText": "Dieser kann auch von der Meldeanschrift abweichen.",
+                "required": true
+              },
+              "email": {
+                "hidden": true
+              },
+              "telefon": {
+                "hidden": true
+              }
+            },
+            "extraFields": [
+              {
+                "id": "sterbedatum",
+                "type": "date",
+                "label": "Sterbedatum",
+                "required": true
+              },
+              {
+                "id": "sterbeort",
+                "type": "text",
+                "label": "Sterbeort",
+                "required": true
+              }
+            ]
           },
           {
             "id": "hat_testament",
@@ -2933,25 +2784,19 @@
               "fieldId": "anzahl_ehen",
               "operator": "set"
             },
-            "fields": [
-              {
-                "id": "ehegatte_vorname",
-                "type": "text",
-                "label": "Vorname",
+            "personTemplate": "natural",
+            "fieldOverrides": {
+              "vorname": {
                 "required": false
               },
-              {
-                "id": "ehegatte_nachname",
-                "type": "text",
-                "label": "Nachname",
+              "nachname": {
                 "required": false
               },
-              {
-                "id": "ehegatte_geburtsdatum",
-                "type": "date",
-                "label": "Geburtsdatum",
+              "adresse": {
                 "required": false
-              },
+              }
+            },
+            "extraFields": [
               {
                 "id": "status",
                 "type": "radio",
@@ -3145,32 +2990,19 @@
                   "fieldId": "anzahl_eigene_kinder",
                   "operator": "set"
                 },
-                "fields": [
-                  {
-                    "id": "vorname",
-                    "type": "text",
-                    "label": "Vorname",
+                "personTemplate": "natural",
+                "fieldOverrides": {
+                  "vorname": {
                     "required": false
                   },
-                  {
-                    "id": "nachname",
-                    "type": "text",
-                    "label": "Nachname",
+                  "nachname": {
                     "required": false
                   },
-                  {
-                    "id": "geburtsdatum",
-                    "type": "date",
-                    "label": "Geburtsdatum",
-                    "required": false
-                  },
-                  {
-                    "id": "adresse",
-                    "type": "address",
+                  "adresse": {
                     "label": "Anschrift (falls lebend)",
                     "required": false
                   }
-                ]
+                }
               }
             ]
           },
@@ -5261,79 +5093,56 @@
     "category": "Familie",
     "steps": [
       {
-        "id": "person1",
-        "title": "Person 1",
+        "id": "erste_person",
+        "title": "Erste Person",
         "fields": [
           {
-            "id": "p1_anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
+            "id": "erste_person",
+            "type": "natural-person",
+            "label": "Erste Person",
+            "required": true,
+            "fieldOverrides": {
+              "anrede": {
+                "required": false
+              },
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "geburtsname": {
+                "required": false
+              },
+              "geburtsdatum": {
+                "required": true
+              },
+              "geburtsort": {
+                "required": false
+              },
+              "staatsangehoerigkeit": {
+                "required": false
+              },
+              "adresse": {
+                "required": true
+              }
+            }
           },
           {
-            "id": "p1_vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "p1_nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "p1_geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "p1_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": true
-          },
-          {
-            "id": "p1_geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": false
-          },
-          {
-            "id": "p1_staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit",
-            "required": false
-          },
-          {
-            "id": "p1_adresse",
-            "type": "address",
-            "label": "Anschrift",
-            "required": true
-          },
-          {
-            "id": "p1_beruf",
+            "id": "erste_person_beruf",
             "type": "text",
             "label": "Beruf / Tätigkeit",
             "required": false,
             "placeholder": "z.B. Malermeisterin (Vollzeit), Krankenpfleger (25 h/Woche)"
           },
           {
-            "id": "p1_nettoeinkommen",
+            "id": "erste_person_nettoeinkommen",
             "type": "number",
             "label": "Monatliches Nettoeinkommen (EUR)",
             "required": false
           },
           {
-            "id": "p1_dolmetscher",
+            "id": "erste_person_dolmetscher",
             "type": "radio",
             "label": "Dolmetscher erforderlich?",
             "options": [
@@ -5344,12 +5153,12 @@
             "required": false
           },
           {
-            "id": "p1_dolmetscher_sprache",
+            "id": "erste_person_dolmetscher_sprache",
             "type": "text",
             "label": "Sprache",
             "required": false,
             "condition": {
-              "fieldId": "p1_dolmetscher",
+              "fieldId": "erste_person_dolmetscher",
               "operator": "eq",
               "value": "Ja"
             }
@@ -5357,79 +5166,56 @@
         ]
       },
       {
-        "id": "person2",
-        "title": "Person 2",
+        "id": "zweite_person",
+        "title": "Zweite Person",
         "fields": [
           {
-            "id": "p2_anrede",
-            "type": "select",
-            "label": "Anrede",
-            "options": [
-              "Herr",
-              "Frau",
-              "Divers",
-              "Keine Angabe"
-            ],
-            "placeholder": "Bitte wählen",
-            "required": false
+            "id": "zweite_person",
+            "type": "natural-person",
+            "label": "Zweite Person",
+            "required": true,
+            "fieldOverrides": {
+              "anrede": {
+                "required": false
+              },
+              "vorname": {
+                "required": true
+              },
+              "nachname": {
+                "required": true
+              },
+              "geburtsname": {
+                "required": false
+              },
+              "geburtsdatum": {
+                "required": true
+              },
+              "geburtsort": {
+                "required": false
+              },
+              "staatsangehoerigkeit": {
+                "required": false
+              },
+              "adresse": {
+                "required": true
+              }
+            }
           },
           {
-            "id": "p2_vorname",
-            "type": "text",
-            "label": "Vorname(n)",
-            "required": true
-          },
-          {
-            "id": "p2_nachname",
-            "type": "text",
-            "label": "Nachname",
-            "required": true
-          },
-          {
-            "id": "p2_geburtsname",
-            "type": "text",
-            "label": "Geburtsname (falls abweichend)",
-            "required": false
-          },
-          {
-            "id": "p2_geburtsdatum",
-            "type": "date",
-            "label": "Geburtsdatum",
-            "required": true
-          },
-          {
-            "id": "p2_geburtsort",
-            "type": "text",
-            "label": "Geburtsort",
-            "required": false
-          },
-          {
-            "id": "p2_staatsangehoerigkeit",
-            "type": "text",
-            "label": "Staatsangehörigkeit",
-            "required": false
-          },
-          {
-            "id": "p2_adresse",
-            "type": "address",
-            "label": "Anschrift",
-            "required": true
-          },
-          {
-            "id": "p2_beruf",
+            "id": "zweite_person_beruf",
             "type": "text",
             "label": "Beruf / Tätigkeit",
             "required": false,
             "placeholder": "z.B. Malermeisterin (Vollzeit), Krankenpfleger (25 h/Woche)"
           },
           {
-            "id": "p2_nettoeinkommen",
+            "id": "zweite_person_nettoeinkommen",
             "type": "number",
             "label": "Monatliches Nettoeinkommen (EUR)",
             "required": false
           },
           {
-            "id": "p2_dolmetscher",
+            "id": "zweite_person_dolmetscher",
             "type": "radio",
             "label": "Dolmetscher erforderlich?",
             "options": [
@@ -5440,12 +5226,12 @@
             "required": false
           },
           {
-            "id": "p2_dolmetscher_sprache",
+            "id": "zweite_person_dolmetscher_sprache",
             "type": "text",
             "label": "Sprache",
             "required": false,
             "condition": {
-              "fieldId": "p2_dolmetscher",
+              "fieldId": "zweite_person_dolmetscher",
               "operator": "eq",
               "value": "Ja"
             }
@@ -5575,11 +5361,11 @@
                 "options": [
                   {
                     "value": "Person 1",
-                    "label": "{/p1_vorname} {/p1_nachname}"
+                    "label": "{/erste_person.vorname} {/erste_person.nachname}"
                   },
                   {
                     "value": "Person 2",
-                    "label": "{/p2_vorname} {/p2_nachname}"
+                    "label": "{/zweite_person.vorname} {/zweite_person.nachname}"
                   },
                   "Wechselmodell"
                 ],
@@ -5666,11 +5452,11 @@
               "Verkauf",
               {
                 "value": "Übertragung auf Person 1",
-                "label": "Übertragung auf {/p1_vorname} {/p1_nachname}"
+                "label": "Übertragung auf {/erste_person.vorname} {/erste_person.nachname}"
               },
               {
                 "value": "Übertragung auf Person 2",
-                "label": "Übertragung auf {/p2_vorname} {/p2_nachname}"
+                "label": "Übertragung auf {/zweite_person.vorname} {/zweite_person.nachname}"
               },
               "Miteigentum fortsetzen",
               "Noch offen"
@@ -5788,11 +5574,11 @@
             "options": [
               {
                 "value": "Person 1 an Person 2",
-                "label": "{/p1_vorname} {/p1_nachname} an {/p2_vorname} {/p2_nachname}"
+                "label": "{/erste_person.vorname} {/erste_person.nachname} an {/zweite_person.vorname} {/zweite_person.nachname}"
               },
               {
                 "value": "Person 2 an Person 1",
-                "label": "{/p2_vorname} {/p2_nachname} an {/p1_vorname} {/p1_nachname}"
+                "label": "{/zweite_person.vorname} {/zweite_person.nachname} an {/erste_person.vorname} {/erste_person.nachname}"
               }
             ],
             "layout": "vertical",
@@ -5947,11 +5733,11 @@
               "Gemeinsames Sorgerecht",
               {
                 "value": "Alleiniges Sorgerecht Person 1",
-                "label": "Alleiniges Sorgerecht {/p1_vorname} {/p1_nachname}"
+                "label": "Alleiniges Sorgerecht {/erste_person.vorname} {/erste_person.nachname}"
               },
               {
                 "value": "Alleiniges Sorgerecht Person 2",
-                "label": "Alleiniges Sorgerecht {/p2_vorname} {/p2_nachname}"
+                "label": "Alleiniges Sorgerecht {/zweite_person.vorname} {/zweite_person.nachname}"
               }
             ],
             "layout": "vertical",
@@ -6011,11 +5797,11 @@
             "options": [
               {
                 "value": "Person 1",
-                "label": "{/p1_vorname} {/p1_nachname}"
+                "label": "{/erste_person.vorname} {/erste_person.nachname}"
               },
               {
                 "value": "Person 2",
-                "label": "{/p2_vorname} {/p2_nachname}"
+                "label": "{/zweite_person.vorname} {/zweite_person.nachname}"
               },
               "Aufteilung"
             ],

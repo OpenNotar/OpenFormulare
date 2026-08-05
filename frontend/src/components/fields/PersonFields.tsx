@@ -21,11 +21,18 @@ import { FieldWrapper } from './FieldWrapper';
 
 function applyOverrides(template: FormField[], overrides?: PersonFieldOverrides): FormField[] {
   if (!overrides) return template;
-  return template.map((f) => {
-    const override = overrides[f.id];
-    if (!override) return f;
-    return { ...f, ...(override.required !== undefined ? { required: override.required } : {}) } as FormField;
-  });
+  return template
+    .filter((f) => overrides[f.id]?.hidden !== true)
+    .map((f) => {
+      const override = overrides[f.id];
+      if (!override) return f;
+      return {
+        ...f,
+        ...(override.required !== undefined ? { required: override.required } : {}),
+        ...(override.label ? { label: override.label } : {}),
+        ...(override.helpText ? { helpText: override.helpText } : {}),
+      } as FormField;
+    });
 }
 
 interface PersonGroupProps {
@@ -69,7 +76,10 @@ export function NaturalPersonField({ field, prefix }: { field: NaturalPersonFiel
     if (!visible) return null;
     return <FieldWrapper label={field.label}><MissingTemplate kind="natural" /></FieldWrapper>;
   }
-  const inner = applyOverrides(naturalTemplate, field.fieldOverrides);
+  const inner = [
+    ...applyOverrides(naturalTemplate, field.fieldOverrides),
+    ...(field.extraFields ?? []),
+  ];
   return <PersonGroup baseField={field} innerFields={inner} prefix={prefix} />;
 }
 
@@ -84,7 +94,10 @@ export function LegalPersonField({ field, prefix }: { field: LegalPersonFieldTyp
     if (!visible) return null;
     return <FieldWrapper label={field.label}><MissingTemplate kind="legal" /></FieldWrapper>;
   }
-  const inner = applyOverrides(legalTemplate, field.fieldOverrides);
+  const inner = [
+    ...applyOverrides(legalTemplate, field.fieldOverrides),
+    ...(field.extraFields ?? []),
+  ];
   return <PersonGroup baseField={field} innerFields={inner} prefix={prefix} />;
 }
 
@@ -114,6 +127,6 @@ export function PersonField({ field, prefix }: { field: PersonFieldType; prefix?
     condition: { fieldId: 'typ', operator: 'eq' as const, value: 'Juristische Person' },
   }));
 
-  const inner: FormField[] = [typField, ...natural, ...legal];
+  const inner: FormField[] = [typField, ...natural, ...legal, ...(field.extraFields ?? [])];
   return <PersonGroup baseField={field} innerFields={inner} prefix={prefix} />;
 }

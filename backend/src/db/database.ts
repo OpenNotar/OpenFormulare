@@ -71,15 +71,63 @@ function rowToDialog(row: DialogRow): DialogRecord {
   };
 }
 
-function seedDefaultDialogs(db: Database.Database) {
-  const countRow = db.prepare('SELECT COUNT(*) as count FROM dialogs').get() as {
-    count: number;
-  };
-  if (countRow.count > 0) {
-    return;
-  }
+export interface SeedSyncResult {
+  inserted: number;
+  updated: number;
+  skipped: number;
+  removed: number;
+  // Welche Dialog-IDs konkret betroffen waren. Wird vom Onboarding-Tool
+  // benutzt, um "Auto-Sync hat XY mitgenommen" sichtbar zu machen.
+  insertedIds?: string[];
+  updatedIds?: string[];
+}
 
+// Stabile, schlüssel-sortierte JSON-Repräsentation für den Inhalts-Vergleich.
+// `isActive`/`isSystem` werden ausgeklammert, weil sie spaltengetragen sind
+// (nicht Teil des inhaltlichen Dialogs) und sonst False-Positives erzeugen.
+function canonicalForCompare(schema: FormSchema): string {
+  const stable = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+        if (key === 'isActive' || key === 'isSystem') continue;
+        out[key] = stable((value as Record<string, unknown>)[key]);
+      }
+      return out;
+    }
+    return value;
+  };
+  return JSON.stringify(stable(schema));
+}
+
+// =====================================================================
+//  Idempotenter Seed-Sync.
+//
+//  Läuft bei jedem Start (force=false) und hält die Default-Dialoge aktuell,
+//  OHNE Anpassungen des Notars zu überschreiben:
+//    - Default-Dialog fehlt  → einfügen (außer er steht im Tombstone).
+//    - Default-Dialog da, is_system=1 und UNVERÄNDERT → mit neuem Seed
+//      überschreiben. "Unverändert" = updated_at == created_at UND keine
+//      dialog_versions-Einträge (jeder Edit bumpt beides bzw. eines davon).
+//    - Verändert (modified) oder eigener Dialog (is_system=0) → nie anfassen.
+//
+//  Mit force=true: Dialoge KOMPLETT neu einspielen — alle System-Dialoge
+//  (+ deren Versionen + Tombstones) löschen und frisch aus dem Seed setzen.
+//  Eigene Dialoge des Notars (is_system=0) und die settings-Tabelle bleiben
+//  in JEDEM Fall unangetastet.
+// =====================================================================
+function seedDefaultDialogs(
+  db: Database.Database,
+  options: { force?: boolean } = {},
+): SeedSyncResult {
+  const force = options.force === true;
   const now = new Date().toISOString();
+  const result: SeedSyncResult = {
+    inserted: 0, updated: 0, skipped: 0, removed: 0,
+    insertedIds: [], updatedIds: [],
+  };
+
   const insert = db.prepare(`
     INSERT INTO dialogs (
       id, payload_ciphertext, payload_iv, payload_tag, payload_version, is_active, is_system, created_at, updated_at
@@ -87,28 +135,135 @@ function seedDefaultDialogs(db: Database.Database) {
       @id, @payload_ciphertext, @payload_iv, @payload_tag, @payload_version, @is_active, @is_system, @created_at, @updated_at
     )
   `);
+  const insertSeed = (dialog: FormSchema, createdAt: string) => {
+    const encrypted = encryptSchema(dialog);
+    insert.run({
+      id: dialog.id,
+      payload_ciphertext: encrypted.ciphertext,
+      payload_iv: encrypted.iv,
+      payload_tag: encrypted.tag,
+      payload_version: encrypted.version,
+      is_active: dialog.isActive === false ? 0 : 1,
+      is_system: dialog.isSystem ? 1 : 0,
+      created_at: createdAt,
+      updated_at: createdAt,
+    });
+  };
 
-  const tx = db.transaction((dialogs: FormSchema[]) => {
-    for (const dialog of dialogs) {
-      // No need to inject the kontakt step here – it is appended at read
-      // time by `rowToDialog` from the central settings.kontakt_step.
-      const normalized = dialog;
-      const encrypted = encryptSchema(normalized);
-      insert.run({
-        id: normalized.id,
-        payload_ciphertext: encrypted.ciphertext,
-        payload_iv: encrypted.iv,
-        payload_tag: encrypted.tag,
-        payload_version: encrypted.version,
-        is_active: normalized.isActive === false ? 0 : 1,
-        is_system: normalized.isSystem ? 1 : 0,
-        created_at: now,
-        updated_at: now,
+  if (force) {
+    // Maßgeblich ist die ID-Liste aus dem Seed — NICHT die Spalte `is_system`.
+    // Die Spalte ist in bestehenden Instanzen nachweislich unzuverlaessig
+    // (Seed-Dialoge mit is_system=0, eigene Dialoge mit is_system=1). Wuerde
+    // man sie hier verwenden, gaebe es zwei Fehler auf einmal:
+    //   - ein Seed-Dialog mit is_system=0 bliebe stehen -> UNIQUE-Constraint
+    //     beim Neu-Einfuegen -> kompletter Reseed bricht ab
+    //   - ein EIGENER Dialog mit is_system=1 wuerde geloescht -> Datenverlust
+    // Ueber die ID-Liste kann per Definition nur getroffen werden, was auch
+    // im Seed steht; alles andere ist unantastbar.
+    const seedIds = defaultDialogs.map((d) => d.id);
+    const placeholders = seedIds.map(() => '?').join(', ');
+    const tx = db.transaction(() => {
+      db.prepare(
+        `DELETE FROM dialog_versions WHERE dialog_id IN (${placeholders})`,
+      ).run(...seedIds);
+      const del = db.prepare(`DELETE FROM dialogs WHERE id IN (${placeholders})`).run(...seedIds);
+      result.removed = del.changes ?? 0;
+      db.prepare('DELETE FROM seed_tombstones').run();
+      for (const dialog of defaultDialogs) {
+        insertSeed(dialog, now);
+        result.inserted++;
+        result.insertedIds!.push(dialog.id);
+      }
+    });
+    tx();
+    return result;
+  }
+
+  // --- idempotenter Sync (force=false) ---
+  const getRow = db.prepare(
+    'SELECT id, payload_ciphertext, payload_iv, payload_tag, payload_version, is_active, is_system, created_at, updated_at FROM dialogs WHERE id = ?',
+  );
+  const isTombstoned = db.prepare('SELECT 1 FROM seed_tombstones WHERE dialog_id = ?');
+  const versionCount = db.prepare(
+    'SELECT COUNT(*) AS c FROM dialog_versions WHERE dialog_id = ?',
+  );
+  const updatePayload = db.prepare(`
+    UPDATE dialogs
+    SET payload_ciphertext = ?, payload_iv = ?, payload_tag = ?, payload_version = ?, is_active = ?, updated_at = created_at
+    WHERE id = ?
+  `);
+
+  const tx = db.transaction(() => {
+    for (const dialog of defaultDialogs) {
+      const row = getRow.get(dialog.id) as DialogRow | undefined;
+
+      if (!row) {
+        // Vom Admin gelöschte Default-Dialoge nicht wieder auferstehen lassen.
+        if (isTombstoned.get(dialog.id)) {
+          result.skipped++;
+          continue;
+        }
+        insertSeed(dialog, now);
+        result.inserted++;
+        result.insertedIds!.push(dialog.id);
+        continue;
+      }
+
+      // Eigene Dialoge des Notars niemals anfassen.
+      if (row.is_system !== 1) {
+        result.skipped++;
+        continue;
+      }
+
+      const unmodified =
+        row.updated_at === row.created_at &&
+        (versionCount.get(dialog.id) as { c: number }).c === 0;
+      if (!unmodified) {
+        result.skipped++;
+        continue;
+      }
+
+      // Unverändert → nur überschreiben, wenn sich der Inhalt unterscheidet
+      // (vermeidet unnötige Schreibzugriffe bei jedem Start).
+      const stored = decryptSchema({
+        ciphertext: row.payload_ciphertext,
+        iv: row.payload_iv,
+        tag: row.payload_tag,
+        version: row.payload_version,
       });
+      if (canonicalForCompare(stored) === canonicalForCompare(dialog)) {
+        result.skipped++;
+        continue;
+      }
+
+      const encrypted = encryptSchema(dialog);
+      updatePayload.run(
+        encrypted.ciphertext,
+        encrypted.iv,
+        encrypted.tag,
+        encrypted.version,
+        dialog.isActive === false ? 0 : 1,
+        dialog.id,
+      );
+      result.updated++;
+      result.updatedIds!.push(dialog.id);
     }
   });
+  tx();
+  return result;
+}
 
-  tx(defaultDialogs);
+// Öffentlicher Einstieg für CLI/Ops: idempotenter Sync oder kompletter
+// Force-Reseed der Dialoge. Settings werden NIE berührt.
+export function reseedDialogs(options: { force?: boolean } = {}): SeedSyncResult {
+  const db = getDatabase();
+  const result = seedDefaultDialogs(db, options);
+  // `--force` loescht die Dialoge und damit (FK ON DELETE CASCADE) auch deren
+  // Uebersetzungen. Die mitgelieferten Sprachpakete direkt wieder einspielen,
+  // damit das CLI keinen Zustand hinterlaesst, der erst beim naechsten
+  // Server-Start vollstaendig wird.
+  seedDefaultTranslations(db);
+  return result;
 }
 
 // Bulk-load any pre-translated language packs that ship next to the default
@@ -168,8 +323,41 @@ export function getDatabase() {
   runYoyoMigrations(dbPath);
   database = new Database(dbPath);
   database.pragma('journal_mode = WAL');
-  seedDefaultDialogs(database);
-  seedDefaultTranslations(database);
+  // OF_SKIP_STARTUP_SEED erlaubt es der seed:dialogs-CLI, der alleinige
+  // Treiber zu sein (sauberes Zählen, keine Doppelausführung). Der Server
+  // setzt das Flag nie → Auto-Sync läuft beim Start wie gewohnt.
+  if (!process.env.OF_SKIP_STARTUP_SEED) {
+    const sync = seedDefaultDialogs(database);
+    if (sync.inserted || sync.updated) {
+      console.log(
+        `[seed] dialog sync: ${sync.inserted} neu, ${sync.updated} aktualisiert, ${sync.skipped} unverändert/übersprungen`,
+      );
+      // Auto-Sync-Ergebnis persistieren, damit das Onboarding-Tool sichtbar
+      // machen kann, was im Hintergrund passiert ist (sonst „unsichtbare"
+      // Migration, die der Notar nicht nachvollziehen kann).
+      try {
+        const stmt = database.prepare(
+          `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        );
+        stmt.run(
+          'last_seed_auto_sync',
+          JSON.stringify({
+            at: new Date().toISOString(),
+            inserted: sync.inserted,
+            updated: sync.updated,
+            skipped: sync.skipped,
+            insertedIds: sync.insertedIds ?? [],
+            updatedIds: sync.updatedIds ?? [],
+          }),
+          new Date().toISOString(),
+        );
+      } catch (err) {
+        console.warn('[seed] konnte Auto-Sync-Ergebnis nicht persistieren:', err);
+      }
+    }
+    seedDefaultTranslations(database);
+  }
 
   return database;
 }
@@ -250,29 +438,90 @@ export function updateDialog(currentId: string, input: UpsertDialogInput): Dialo
   });
   const nextId = dialog.id;
   const encrypted = encryptSchema(dialog);
+  const idChanged = nextId !== currentId;
 
-  db
-    .prepare(`
-      UPDATE dialogs
-      SET id = ?, payload_ciphertext = ?, payload_iv = ?, payload_tag = ?, payload_version = ?, is_active = ?, updated_at = ?
-      WHERE id = ?
-    `)
-    .run(
-      nextId,
-      encrypted.ciphertext,
-      encrypted.iv,
-      encrypted.tag,
-      encrypted.version,
-      dialog.isActive ? 1 : 0,
-      new Date().toISOString(),
-      currentId,
-    );
+  // Bei einem ID-Wechsel (= Route ändern) müssen alle Child-Zeilen, die per
+  // FK auf `dialogs.id` zeigen, mit umgezogen werden. `dialog_translations`
+  // hat ein ON DELETE CASCADE, aber kein ON UPDATE CASCADE — daher würde ein
+  // direkter UPDATE der Parent-ID an der FK scheitern.
+  //
+  // Lösung: in einer Transaktion `PRAGMA defer_foreign_keys = ON` setzen.
+  // SQLite verschiebt die FK-Prüfung dann auf den COMMIT, sodass Parent
+  // und Children in beliebiger Reihenfolge umbenannt werden können, solange
+  // der Endzustand konsistent ist. Das Pragma wird nach dem COMMIT
+  // automatisch wieder zurückgesetzt.
+  // Beim Umbenennen eines Default-Dialogs würde der nächste Server-Start
+  // die ursprüngliche ID nicht mehr finden und den Dialog als „neu" aus dem
+  // Seed wiedereinfügen → Notar hätte plötzlich beide Versionen. Wir setzen
+  // daher einen Tombstone auf die alte ID + degradieren den umbenannten
+  // Dialog zu einem regulären Notar-Dialog (`is_system = 0`), damit er
+  // künftig nicht mehr Teil des Auto-Sync-Pools ist.
+  const isRenameOfSystemDialog = idChanged && rawRow.is_system === 1;
+
+  // Bei einem ID-Wechsel (= Route ändern) müssen alle Child-Zeilen, die per
+  // FK auf `dialogs.id` zeigen, mit umgezogen werden. `dialog_translations`
+  // hat ein ON DELETE CASCADE, aber kein ON UPDATE CASCADE — daher würde ein
+  // direkter UPDATE der Parent-ID an der FK scheitern.
+  //
+  // Lösung: in einer Transaktion `PRAGMA defer_foreign_keys = ON` setzen.
+  // SQLite verschiebt die FK-Prüfung dann auf den COMMIT, sodass Parent
+  // und Children in beliebiger Reihenfolge umbenannt werden können, solange
+  // der Endzustand konsistent ist. Das Pragma wird nach dem COMMIT
+  // automatisch wieder zurückgesetzt.
+  const tx = db.transaction(() => {
+    if (idChanged) {
+      const conflict = db.prepare('SELECT 1 FROM dialogs WHERE id = ?').get(nextId);
+      if (conflict) {
+        throw new Error(`Dialog mit Route "${nextId}" existiert bereits.`);
+      }
+      db.exec('PRAGMA defer_foreign_keys = ON');
+      db.prepare('UPDATE dialog_translations SET dialog_id = ? WHERE dialog_id = ?').run(nextId, currentId);
+      db.prepare('UPDATE dialog_versions SET dialog_id = ? WHERE dialog_id = ?').run(nextId, currentId);
+    }
+
+    db.prepare(`
+        UPDATE dialogs
+        SET id = ?, payload_ciphertext = ?, payload_iv = ?, payload_tag = ?, payload_version = ?, is_active = ?, is_system = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        nextId,
+        encrypted.ciphertext,
+        encrypted.iv,
+        encrypted.tag,
+        encrypted.version,
+        dialog.isActive ? 1 : 0,
+        isRenameOfSystemDialog ? 0 : rawRow.is_system,
+        new Date().toISOString(),
+        currentId,
+      );
+
+    if (isRenameOfSystemDialog) {
+      // Tombstone für die alte System-ID, damit Auto-Sync sie nicht
+      // wieder einspielt. Falls bereits ein Tombstone existiert (z. B. nach
+      // wiederholtem Rename), wird er aktualisiert.
+      db.prepare(
+        'INSERT OR REPLACE INTO seed_tombstones (dialog_id, deleted_at) VALUES (?, ?)',
+      ).run(currentId, new Date().toISOString());
+    }
+  });
+  tx();
 
   return getDialog(nextId);
 }
 
 export function deleteDialog(id: string): boolean {
-  const result = getDatabase().prepare('DELETE FROM dialogs WHERE id = ?').run(id);
+  const db = getDatabase();
+  // is_system VOR dem Löschen lesen — gelöschte Default-Dialoge bekommen einen
+  // Tombstone, damit der Seed-Sync sie nicht beim nächsten Start neu einfügt.
+  const row = db.prepare('SELECT is_system FROM dialogs WHERE id = ?').get(id) as
+    | { is_system: number }
+    | undefined;
+  const result = db.prepare('DELETE FROM dialogs WHERE id = ?').run(id);
+  if (result.changes > 0 && row?.is_system === 1) {
+    db.prepare(
+      'INSERT OR REPLACE INTO seed_tombstones (dialog_id, deleted_at) VALUES (?, ?)',
+    ).run(id, new Date().toISOString());
+  }
   return result.changes > 0;
 }
 

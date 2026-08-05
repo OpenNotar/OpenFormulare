@@ -1,9 +1,17 @@
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { isDemoMode } from '../services/runtimeMode';
+import { getAdminUserById, type AdminRole, type AdminUserRecord } from '../db/adminUsers';
 
 interface AdminTokenPayload {
+  /** Benutzer-ID aus `admin_users`. */
+  uid: string;
   username: string;
+  role: AdminRole;
+  /** `token_version` des Benutzers zum Ausstellungszeitpunkt. Stimmt sie nicht
+   *  mehr mit der DB überein (Passwort-/Rollenwechsel, Umbenennung,
+   *  Deaktivierung), gilt das Token als ungültig. */
+  tv: number;
   exp: number;
 }
 
@@ -14,14 +22,6 @@ function requiredEnv(name: string): string {
   }
 
   return value;
-}
-
-export function getAdminUsername() {
-  return requiredEnv('ADMIN_USERNAME');
-}
-
-export function getAdminPassword() {
-  return requiredEnv('ADMIN_PASSWORD');
 }
 
 function getSessionSecret() {
@@ -35,9 +35,12 @@ function signPayload(payload: string) {
     .digest('hex');
 }
 
-export function createAdminToken() {
+export function createAdminToken(user: AdminUserRecord) {
   const payload: AdminTokenPayload = {
-    username: getAdminUsername(),
+    uid: user.id,
+    username: user.username,
+    role: user.role,
+    tv: user.tokenVersion,
     exp: Date.now() + 1000 * 60 * 60 * 12,
   };
 
@@ -62,19 +65,28 @@ export function verifyAdminToken(token: string): AdminTokenPayload | null {
     return null;
   }
 
+  let payload: AdminTokenPayload;
   try {
-    const payload = JSON.parse(
+    payload = JSON.parse(
       Buffer.from(encodedPayload, 'base64url').toString('utf8'),
     ) as AdminTokenPayload;
-
-    if (payload.username !== getAdminUsername() || payload.exp < Date.now()) {
-      return null;
-    }
-
-    return payload;
   } catch {
     return null;
   }
+
+  if (!payload?.uid || typeof payload.exp !== 'number' || payload.exp < Date.now()) {
+    return null;
+  }
+
+  // Gegen die DB prüfen: gelöschte, deaktivierte oder inzwischen geänderte
+  // Benutzer dürfen mit einem alten Token nicht weiterarbeiten.
+  const user = getAdminUserById(payload.uid);
+  if (!user || !user.isActive || user.tokenVersion !== payload.tv) {
+    return null;
+  }
+
+  // Name und Rolle immer aus der DB nehmen — das Token ist nur der Nachweis.
+  return { ...payload, username: user.username, role: user.role };
 }
 
 export function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
@@ -83,6 +95,7 @@ export function requireAdminAuth(req: Request, res: Response, next: NextFunction
     // The demo session id (set by the demoSession middleware) doubles as
     // their identity so dialog locks remain per-session.
     req.adminUser = req.demoSessionId ? `demo:${req.demoSessionId}` : 'demo';
+    req.adminRole = 'admin';
     next();
     return;
   }
@@ -101,5 +114,25 @@ export function requireAdminAuth(req: Request, res: Response, next: NextFunction
   }
 
   req.adminUser = payload.username;
+  req.adminUserId = payload.uid;
+  req.adminRole = payload.role;
+  next();
+}
+
+/**
+ * Beschränkt eine Route auf die Rolle `admin`. Muss NACH `requireAdminAuth`
+ * eingehängt werden.
+ *
+ * Rollen:
+ *   admin     - alles, inkl. Einstellungen, Plugins, Benutzerverwaltung
+ *   moderator - Dialoge und Übersetzungen
+ */
+export function requireAdminRole(req: Request, res: Response, next: NextFunction) {
+  if (req.adminRole !== 'admin') {
+    res.status(403).json({
+      error: 'Dafür fehlen die Rechte — dieser Bereich ist Administratoren vorbehalten.',
+    });
+    return;
+  }
   next();
 }

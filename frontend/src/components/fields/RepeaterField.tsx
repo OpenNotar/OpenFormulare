@@ -14,11 +14,18 @@ interface Props {
 // Apply per-template-field `required` overrides. Same shape as PersonField.
 function applyOverrides(template: FormField[], overrides?: PersonFieldOverrides): FormField[] {
   if (!overrides) return template;
-  return template.map((f) => {
-    const o = overrides[f.id];
-    if (!o) return f;
-    return { ...f, ...(o.required !== undefined ? { required: o.required } : {}) } as FormField;
-  });
+  return template
+    .filter((f) => overrides[f.id]?.hidden !== true)
+    .map((f) => {
+      const o = overrides[f.id];
+      if (!o) return f;
+      return {
+        ...f,
+        ...(o.required !== undefined ? { required: o.required } : {}),
+        ...(o.label ? { label: o.label } : {}),
+        ...(o.helpText ? { helpText: o.helpText } : {}),
+      } as FormField;
+    });
 }
 
 // Legacy helper – still used to honour `addressRequired === false` from old

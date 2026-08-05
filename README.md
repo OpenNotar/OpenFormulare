@@ -66,9 +66,13 @@ services:
       - openformulare-data:/data
 ```
 
-Wird ein bereits gesetztes Passwort durch eine neue ENV-Variable
-übersteuert, übernimmt der Container den neuen Wert beim nächsten Neustart
-und persistiert ihn im Volume.
+> **Wichtig:** `ADMIN_USERNAME` und `ADMIN_PASSWORD` wirken **nur beim
+> allerersten Start**. Sie legen genau einen Benutzer in der Datenbank an;
+> danach werden sie ignoriert. Wer sie später ändert, ändert damit **nicht**
+> das Login — dafür ist die Benutzerverwaltung im Admin-Bereich zuständig
+> (siehe [Benutzer und Rollen](#benutzer-und-rollen)). So bleibt ein im
+> Admin-Bereich gesetztes Passwort auch dann gültig, wenn in der Compose-Datei
+> noch der alte Wert steht.
 
 > **Tipp:** Statt das Passwort direkt in die Compose-Datei zu schreiben, lieber
 > eine separate `.env`-Datei oder Docker-Secrets verwenden — niemals ins Git!
@@ -103,15 +107,70 @@ das Log bleibt dann ruhig.
 
 ### Passwort später ändern
 
-- **Per ENV:** Container mit neuem `ADMIN_PASSWORD` starten — überschreibt
-  die Datei im Volume.
-- **Per Volume:** Den Inhalt von `/data/.secrets/admin-password` durch das
-  neue Passwort ersetzen, Container neu starten.
-- **Per UI:** _(in Vorbereitung – aktuell nur über die obigen Wege)_
+- **Per UI (der normale Weg):** Admin-Bereich → **Benutzer** → „Mein Konto".
+  Dort lassen sich Benutzername und Passwort frei ändern — genau dafür ist die
+  Benutzerverwaltung da, damit sich niemand die generierten init-Zugangsdaten
+  merken muss.
+- **Per CLI (wenn niemand mehr hineinkommt):**
 
-Dieselben zwei Wege gelten auch für `ADMIN_SESSION_SECRET`,
-`DIALOG_DB_PASSWORD` und `DIALOG_DB_SALT`: setzen oder vom Container beim
-ersten Start generieren lassen.
+  ```bash
+  docker exec openformulare npm run admin:reset -- \
+    --username kanzlei-admin --password "NeuesPasswort"
+  ```
+
+- **Nicht per ENV:** ein geändertes `ADMIN_PASSWORD` bleibt nach dem ersten
+  Start wirkungslos (siehe Hinweis oben).
+
+Für `ADMIN_SESSION_SECRET`, `DIALOG_DB_PASSWORD` und `DIALOG_DB_SALT` gelten
+weiterhin beide Wege: selbst setzen oder vom Container beim ersten Start
+generieren lassen.
+
+---
+
+## Benutzer und Rollen
+
+Der Admin-Bereich kennt mehrere Benutzer mit zwei Rollen:
+
+| Rolle | Darf |
+|---|---|
+| **Administrator** | alles — Dialoge, Einstellungen, Plugins, Bewertungen, Update-Übersicht und Benutzerverwaltung |
+| **Moderator** | Dialoge anlegen/bearbeiten/löschen und Übersetzungen pflegen — **keine** Einstellungen, Plugins oder Benutzer |
+
+Verwaltet wird das unter **Admin → Benutzer**: Konten anlegen, umbenennen,
+Rolle wechseln, Passwort setzen, deaktivieren oder löschen. Jeder Benutzer —
+auch ein Moderator — kann sein eigenes Passwort unter „Mein Konto" ändern.
+
+Die Rechte werden serverseitig durchgesetzt; die Oberfläche blendet lediglich
+aus, was die jeweilige Rolle ohnehin nicht darf.
+
+**Sicherungen**, damit sich eine Instanz nicht aussperrt:
+
+- Es muss immer mindestens ein **aktiver Administrator** übrig bleiben.
+- Das eigene Konto kann nicht gelöscht, deaktiviert oder herabgestuft werden.
+- Passwort-, Rollen- und Namensänderungen melden bestehende Sitzungen des
+  betroffenen Kontos sofort ab.
+
+Passwörter werden mit **scrypt** und pro Benutzer eigenem Salt gespeichert.
+
+### Aussperrung beheben — `npm run admin:reset`
+
+```bash
+# Alle Benutzer mit Rolle und Status anzeigen
+npm run admin:reset -- --list
+
+# Passwort setzen (Benutzer wird angelegt, falls nicht vorhanden;
+# Rolle wird auf admin gehoben und das Konto aktiviert)
+npm run admin:reset -- --username kanzlei-admin --password "NeuesPasswort"
+
+# Mit expliziter Rolle
+npm run admin:reset -- --username kollegin --password "..." --role moderator
+```
+
+Voraussetzung: `npm run build` (das CLI läuft aus `dist/`). Im Container:
+
+```bash
+docker exec <container> npm run admin:reset -- --list
+```
 
 ---
 
@@ -526,6 +585,53 @@ anschließend die einzelnen Dateien aus `dialogs/`. Bei gleicher `id` gewinnt
 die Datei aus `dialogs/` — so lassen sich ausgelagerte Dialoge ohne Eingriff
 in die Sammel-Datei pflegen. Neue Dateien in `dialogs/` werden automatisch
 mit aufgenommen.
+
+### Seed-Sync (Updates für bestehende Instanzen)
+
+Der Seed läuft **bei jedem Start** als idempotenter Sync — nicht nur einmal
+auf leerer DB. So bekommen auch bestehende Notar-Instanzen neue und
+aktualisierte Default-Dialoge, **ohne** dass eigene Anpassungen verloren
+gehen:
+
+| Zustand des Dialogs in der DB                              | Verhalten beim Sync          |
+|------------------------------------------------------------|------------------------------|
+| Default-Dialog fehlt (und ist nicht gelöscht-getombstoned) | wird eingefügt               |
+| Default-Dialog vorhanden, **unverändert**                  | wird auf neueste Version aktualisiert |
+| Default-Dialog **vom Notar bearbeitet**                    | bleibt unangetastet          |
+| Eigener Dialog (`is_system = 0`)                           | bleibt unangetastet          |
+| Vom Notar **gelöschter** Default-Dialog                    | bleibt gelöscht (Tombstone)  |
+
+„Unverändert" = `updated_at == created_at` **und** keine Einträge in
+`dialog_versions` (jede Bearbeitung — inkl. Aktiv-/Sichtbarkeits-Toggle —
+markiert den Dialog als verändert). Die `settings`-Tabelle wird vom Seed
+**nie** angefasst.
+
+### Dialoge manuell neu einspielen — `npm run seed:dialogs`
+
+```bash
+# Idempotenter Sync (wie beim Start) — sicher, schützt Anpassungen:
+npm run seed:dialogs
+
+# KOMPLETT neu einspielen: die Default-Dialoge löschen und frisch aus dem
+# Seed setzen. Für Notare, bei denen es keine Anpassungen gab/geben soll:
+npm run seed:dialogs -- --force
+```
+
+`--force` arbeitet über die **ID-Liste des Seeds**, nicht über die Spalte
+`is_system` (die in gewachsenen Instanzen unzuverlässig ist). Damit gilt
+verlässlich: getroffen wird ausschließlich, was auch im Seed steht — jeder
+eigene Dialog bleibt erhalten, selbst wenn sein `is_system`-Flag falsch ist.
+Betroffen sind neben dem Schema auch die **Versionshistorie** und die
+**Übersetzungen** der Default-Dialoge; die mitgelieferten Sprachpakete werden
+direkt wieder eingespielt, eigene Übersetzungen der Default-Dialoge sind
+danach weg. `settings` und eigene Dialoge werden **nie** angefasst.
+
+Voraussetzung: `npm run build` (das CLI läuft aus `dist/`). Im laufenden
+Container z. B.:
+
+```bash
+docker exec <container> npm run seed:dialogs -- --force
+```
 
 ---
 

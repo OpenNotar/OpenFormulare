@@ -1,4 +1,5 @@
 import type { DiNoMapping, DiNoLegalClient, DiNoRealEstate, DiNoMortgage, DiNoShareHolder, DiNoNewCompany } from './dinoMapper';
+import { getDialog } from '../db/database';
 
 // Human-friendly payload für DiNo DialogInbox.
 // DiNo entscheidet später über Mandanten-Dedup und LegalTransaction-Erstellung.
@@ -26,7 +27,13 @@ export interface PayloadClient {
   idBusinessForm_hint: string;
   idLegalClientType_hint: string;
   address?: PayloadAddress;
+  /** Rolle als Klartext, wie im Dialog benannt (Feld-/Repeater-Label).
+   *  Bleibt fuer bestehende DiNo-Versionen erhalten. */
   role: string;
+  /** Dieselbe Rolle, benannt nach der `_hint`-Konvention: der Wert ist vom
+   *  Notar frei vergebener Text und muss in DiNo gegen die Rollen-Referenz
+   *  aufgeloest werden (siehe docs/TODO-DINO-IMPORT.md, Abschnitt 2.1). */
+  idLegalClientRole_hint: string;
   extraData?: Record<string, unknown>;
 }
 
@@ -50,6 +57,13 @@ export interface DiNoPayload {
     mortgage?: DiNoMortgage;
     shareHolders?: DiNoShareHolder[];
     newCompany?: DiNoNewCompany;
+    appointment?: {
+      status?: string;
+      rawDate?: string;
+      meetingAt?: string;
+    };
+    clientMessage?: string;
+    description?: string;
   };
   rawData: Record<string, unknown>;
 }
@@ -164,6 +178,7 @@ function convertClient(client: DiNoLegalClient, index: number): PayloadClient {
     idBusinessForm_hint: client.idBusinessForm_hint,
     idLegalClientType_hint: client.idLegalClientType_hint,
     role: client._role,
+    idLegalClientRole_hint: client._role,
   };
   if (client.FirstName) result.FirstName = client.FirstName;
   if (client.SurName) result.SurName = client.SurName;
@@ -190,6 +205,15 @@ function convertClient(client: DiNoLegalClient, index: number): PayloadClient {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/** Vom Mandanten hochgeladene Datei, die DiNo beim Import als Dokument
+ * ("Bereitgestellte Daten") an der Relationship anlegt. */
+export interface DiNoAttachment {
+  relPath: string;
+  fileName: string;
+  contentType?: string | null;
+  dataBase64: string;
+}
+
 export function buildPayload(
   id: string,
   formType: string,
@@ -197,6 +221,7 @@ export function buildPayload(
   pulledAt: string | null,
   rawData: Record<string, unknown>,
   mapping: DiNoMapping,
+  attachments: DiNoAttachment[] = [],
 ): DiNoPayload {
   const legalClients = mapping.legalClients.map((c, i) => convertClient(c, i));
 
@@ -205,18 +230,46 @@ export function buildPayload(
   if (mapping.mortgage) context.mortgage = mapping.mortgage;
   if (mapping.shareHolders && mapping.shareHolders.length > 0) context.shareHolders = mapping.shareHolders;
   if (mapping.newCompany) context.newCompany = mapping.newCompany;
+  if (mapping.appointment) context.appointment = mapping.appointment;
+  if (mapping.clientMessage) context.clientMessage = mapping.clientMessage;
+  if (mapping.description) context.description = mapping.description;
+
+  // DialogTitle bevorzugt aus der DB (FormSchema.title) — fällt sonst auf
+  // das Mapping-Default zurück. Verhindert, dass DiNo den technischen
+  // Slug (z. B. "allgemeines-anliegen") als Titel anzeigt.
+  let dialogTitle = mapping._dialogTitle;
+  try {
+    const dialog = getDialog(formType);
+    if (dialog && dialog.title) {
+      dialogTitle = dialog.title;
+    }
+  } catch {
+    // DB nicht erreichbar oder Dialog nicht gefunden → Default behalten.
+  }
+
+  // Hat das Mapping nur den technischen Slug als Vorgangstitel/Hint gesetzt
+  // (generischer Dialog ohne spezifisches Mapping), den lesbaren
+  // dialogTitle verwenden. Spezifische Titel (z. B. "Immobilienkauf – …")
+  // bleiben unangetastet.
+  const titleIsSlug = mapping.legalTransaction.Title === formType;
+  const hintIsSlug =
+    mapping.legalTransaction.LegalTransactionType_hint === formType;
 
   return {
     id,
     formType,
-    dialogTitle: mapping._dialogTitle,
-    title: mapping.legalTransaction.Title,
-    transactionTypeHint: mapping.legalTransaction.LegalTransactionType_hint,
+    dialogTitle,
+    title: titleIsSlug ? dialogTitle : mapping.legalTransaction.Title,
+    transactionTypeHint: hintIsSlug
+      ? dialogTitle
+      : mapping.legalTransaction.LegalTransactionType_hint,
     submittedAt,
     pulledAt,
     legalClients,
     summary: buildSummary(rawData),
     context: Object.keys(context).length > 0 ? context : undefined,
-    rawData,
+    // Attachments unter rawData.attachments — DiNo liest sie beim Dialog-
+    // Import und legt sie als Dokumente an der Relationship an.
+    rawData: attachments.length > 0 ? { ...rawData, attachments } : rawData,
   };
 }

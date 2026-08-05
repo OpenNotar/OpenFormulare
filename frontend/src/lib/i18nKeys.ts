@@ -94,5 +94,32 @@ function collectFieldEntries(
         collectFieldEntries(f.fields, `${prefix}.`, ctx, out);
       }
     }
+    // Personen-Container: Zusatzfelder gehoeren wie Repeater-Extras unter den
+    // verschachtelten Praefix, sonst fehlen sie im Uebersetzungs-Editor.
+    if (f.type === 'person' || f.type === 'natural-person' || f.type === 'legal-person') {
+      if (Array.isArray(f.extraFields)) {
+        collectFieldEntries(f.extraFields, `${prefix}.`, ctx, out);
+      }
+    }
+    // Angepasste Vorlagenfelder — bei Repeatern und Personen-Containern gleich.
+    if (f.type === 'repeater' || f.type === 'person'
+        || f.type === 'natural-person' || f.type === 'legal-person') {
+      for (const [innerId, ov] of Object.entries(f.fieldOverrides ?? {})) {
+        if (ov.label) {
+          out.push({
+            key: `${prefix}.field.${innerId}.label`,
+            german: ov.label,
+            context: `${ctx} → Vorlagenfeld „${innerId}" → Label`,
+          });
+        }
+        if (ov.helpText) {
+          out.push({
+            key: `${prefix}.field.${innerId}.helpText`,
+            german: ov.helpText,
+            context: `${ctx} → Vorlagenfeld „${innerId}" → Hilfetext`,
+          });
+        }
+      }
+    }
   }
 }

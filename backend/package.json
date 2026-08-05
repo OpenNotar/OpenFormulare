@@ -1,12 +1,14 @@
 {
   "name": "openformulare-backend",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.1.2",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "migrate": "python3 scripts/run_yoyo.py",
     "build": "tsc && node -e \"require('fs').cpSync('src/db/seeds','dist/db/seeds',{recursive:true})\"",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed:dialogs": "node dist/cli/seedDialogs.js",
+    "admin:reset": "node dist/cli/adminReset.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

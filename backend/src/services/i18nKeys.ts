@@ -27,7 +27,7 @@
 // etc.
 // ---------------------------------------------------------------------------
 
-import type { FormField, FormSchema, FormStep, FieldOption, OptionConfig } from '../db/types/schema';
+import type { FormField, FormSchema, FormStep, FieldOption, OptionConfig, PersonFieldOverrides } from '../db/types/schema';
 import type { TranslationMap } from '../db/translations';
 
 function optionValue(opt: FieldOption): string {
@@ -100,6 +100,18 @@ function collectFieldStrings(
     // Legacy repeater inline fields
     if (f.type === 'repeater' && Array.isArray(f.fields)) {
       collectFieldStrings(f.fields, `${prefix}.`, out);
+    }
+    if (isPersonContainer(f) && Array.isArray(f.extraFields)) {
+      collectFieldStrings(f.extraFields, `${prefix}.`, out);
+    }
+    // Umbenannte/neu beschriebene Vorlagenfelder sind dialogspezifischer Text
+    // und damit uebersetzbar — bei Repeatern genauso wie bei Personen-Containern.
+    // Der Schluessel folgt der bestehenden verschachtelten Konvention.
+    if (hasFieldOverrides(f)) {
+      for (const [innerId, ov] of Object.entries(f.fieldOverrides ?? {})) {
+        if (ov.label) out[`${prefix}.field.${innerId}.label`] = ov.label;
+        if (ov.helpText) out[`${prefix}.field.${innerId}.helpText`] = ov.helpText;
+      }
     }
   }
 }
@@ -186,5 +198,39 @@ function translateField(field: FormField, tx: TranslationMap, pathPrefix: string
       copy.fields = field.fields.map((inner) => translateField(inner, tx, innerPrefix));
     }
   }
+
+  // Personen-Container (person / natural-person / legal-person) verhalten sich
+  // wie ein Repeater-Eintrag: Zusatzfelder und umbenannte Vorlagenfelder
+  // gehoeren unter denselben verschachtelten Praefix. Ohne diesen Zweig bleiben
+  // beide unuebersetzt (deutsch) stehen.
+  if (isPersonContainer(copy) && isPersonContainer(field) && Array.isArray(field.extraFields)) {
+    copy.extraFields = field.extraFields.map((inner) => translateField(inner, tx, `${prefix}.`));
+  }
+
+  if (hasFieldOverrides(copy) && hasFieldOverrides(field) && field.fieldOverrides) {
+    const translated: PersonFieldOverrides = {};
+    for (const [innerId, ov] of Object.entries(field.fieldOverrides)) {
+      translated[innerId] = {
+        ...ov,
+        ...(ov.label ? { label: t(`field.${innerId}.label`, ov.label) } : {}),
+        ...(ov.helpText ? { helpText: t(`field.${innerId}.helpText`, ov.helpText) } : {}),
+      };
+    }
+    copy.fieldOverrides = translated;
+  }
   return copy;
+}
+
+type PersonContainerField = Extract<FormField, { type: 'person' | 'natural-person' | 'legal-person' }>;
+
+function isPersonContainer(f: FormField): f is PersonContainerField {
+  return f.type === 'person' || f.type === 'natural-person' || f.type === 'legal-person';
+}
+
+// Repeater und Personen-Container teilen sich `fieldOverrides` — beide muessen
+// gleich behandelt werden, sonst bleibt eine der Varianten unuebersetzt.
+type OverridableField = Extract<FormField, { fieldOverrides?: PersonFieldOverrides }>;
+
+function hasFieldOverrides(f: FormField): f is OverridableField {
+  return f.type === 'repeater' || isPersonContainer(f);
 }

@@ -12,6 +12,10 @@ export function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Grund der Weiterleitung (z. B. abgelaufene Sitzung). Ohne diesen Hinweis
+  // landet man ohne Erklaerung wieder auf dem Login und haelt das fuer einen
+  // Fehler der zuvor ausgefuehrten Aktion.
+  const notice = (location.state as { notice?: string } | null)?.notice;
 
   if (getCachedRuntimeMode()?.demoMode || isAdminAuthenticated()) {
     return <Navigate to="/admin" replace />;
@@ -41,6 +45,12 @@ export function AdminLoginPage() {
         <p className="text-sm text-slate-400 mb-6">
           Melden Sie sich an, um Dialoge zu erstellen, zu bearbeiten und freizuschalten.
         </p>
+
+        {notice && (
+          <div className="mb-5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">
+            {notice}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

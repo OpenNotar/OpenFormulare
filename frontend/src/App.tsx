@@ -11,9 +11,12 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { AdminLoginPage } from './components/AdminLoginPage';
 import { AdminSettings } from './components/AdminSettings';
 import { AdminPlugins } from './components/AdminPlugins';
+import { AdminOnboarding } from './components/AdminOnboarding';
+import { AdminUsers } from './components/AdminUsers';
 import { createDialog, getAdminDialog, getDialog, updateDialog } from './lib/dialogsApi';
 import type { DialogRecord } from './lib/dialogsApi';
 import { isAdminAuthenticated, verifyAdminSession } from './lib/adminAuth';
+import { SESSION_EXPIRED_MESSAGE } from './lib/adminApi';
 import { loadRuntimeMode, type RuntimeMode } from './lib/runtimeMode';
 import type { FormSchema } from './types/schema';
 
@@ -36,6 +39,10 @@ function ErrorPage({ message }: { message: string }) {
 function RequireAdmin({ runtimeMode }: { runtimeMode: RuntimeMode }) {
   const location = useLocation();
   const [status, setStatus] = useState<'checking' | 'ok' | 'denied'>('checking');
+  // Beim Mount festhalten, ob ein Token vorhanden war: verifyAdminSession()
+  // verwirft es bei einer ungueltigen Sitzung, danach ist es nicht mehr
+  // unterscheidbar von „war nie angemeldet".
+  const [hadToken] = useState(() => isAdminAuthenticated());
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +79,18 @@ function RequireAdmin({ runtimeMode }: { runtimeMode: RuntimeMode }) {
   }
 
   if (status === 'denied') {
-    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate
+        to="/admin/login"
+        replace
+        state={{
+          from: location.pathname,
+          // Nur wenn ueberhaupt ein Token vorlag, ist es eine abgelaufene
+          // Sitzung — beim erstmaligen Aufruf soll kein Hinweis erscheinen.
+          ...(hadToken ? { notice: SESSION_EXPIRED_MESSAGE } : {}),
+        }}
+      />
+    );
   }
 
   return <Outlet />;
@@ -261,6 +279,8 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/plugins" element={<AdminPlugins />} />
+          <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/dialogs/new" element={<NewEditorPage />} />
           <Route path="/admin/dialogs/:id/edit" element={<AdminEditEditorPage />} />
         </Route>
