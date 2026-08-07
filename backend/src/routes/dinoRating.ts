@@ -152,6 +152,10 @@ router.get('/sessions', (req, res) => {
       overallScore: s.overallScore,
       answers: s.answers ?? [],
       originId: s.originId,
+      // Zeitpunkt des ersten Oeffnens (oder null). DiNo leitet daraus
+      // "geoeffnet, aber nicht abgegeben" ab — das Signal zum Nachfassen.
+      // Bewusst kein eigener Status: der Bogen bleibt bis zur Abgabe `pending`.
+      openedAt: s.openedAt,
     })),
   });
 });
